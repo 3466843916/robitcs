@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, Bell, Bot, CheckCircle2, ChevronRight, CircleHelp, CircleStop, Cpu, Download, FileText, Folder, Gauge, Globe2, Home, Loader2, LogOut, Pencil, Play, Plus, RefreshCw, RotateCcw, Server, SquareTerminal, Thermometer, Trash2, Upload, Wifi, WifiOff, X } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Bot, CheckCircle2, ChevronRight, CircleHelp, CircleStop, Cpu, Download, FileText, Folder, Gauge, Globe2, Home, Loader2, LogOut, Pencil, Play, Plus, RefreshCw, RotateCcw, Server, SquareTerminal, Thermometer, Trash2, Upload, Wifi, WifiOff, X } from "lucide-react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -21,7 +21,7 @@ const stationColors = ["#4c7dff", "#8b5cf6", "#0ea5a8", "#f59e0b", "#ec4899"];
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {headers: {"Content-Type": "application/json", ...(options?.headers || {})}, ...options});
-  if (!response.ok) { const body = await response.json().catch(() => ({detail: response.statusText})); throw new Error(body.detail || "请求失败"); }
+  if (!response.ok) { const body = await response.json().catch(() => ({detail: response.statusText})); throw new Error(typeof body.detail === "string" ? body.detail : Array.isArray(body.detail) ? body.detail.map((item:any)=>item.msg||JSON.stringify(item)).join("；") : body.detail ? JSON.stringify(body.detail) : "请求失败"); }
   return response.status === 204 ? undefined as T : response.json();
 }
 
@@ -41,7 +41,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [tab, setTab] = useState<"welcome" | "overview" | "logs" | "alarms" | "fsm">("welcome");
+  const [tab, setTab] = useState<"welcome" | "overview" | "analytics" | "report" | "logs" | "alarms" | "fsm">("welcome");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logStation, setLogStation] = useState<string | null>(null);
   const [logRefresh, setLogRefresh] = useState(0);
@@ -58,6 +58,7 @@ export default function App() {
   const [stationPage, setStationPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
   const [networkInfo, setNetworkInfo] = useState<{url?:string;message:string;ok:boolean;scope:"lan"|"remote"|"internet"}|null>(null);
+  const [internetStatus, setInternetStatus] = useState<{enabled:boolean;stale:boolean;url?:string}>({enabled:false,stale:false});
   const [commandError, setCommandError] = useState<{stationId:string;target:string;action:string;message:string}|null>(null);
   const [toast, setToast] = useState<{kind: "ok" | "error"; text: string} | null>(null);
   const [connected, setConnected] = useState(false);
@@ -118,6 +119,15 @@ export default function App() {
     api<LogPage>(`/api/logs?${params}`).then(data=>{setLogs(data.items);setLogPages(data.pages);setLogTotal(data.total);}).catch(error=>setToast({kind:"error",text:error.message}));
   },[authenticated,tab,logStation,logSource,errorsOnly,logPage,logRefresh]);
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(null), 3500); return () => clearTimeout(timer); } }, [toast]);
+  useEffect(() => {
+    if (!authenticated) return;
+    let disposed = false;
+    const check = () => api<{enabled:boolean;stale:boolean;url?:string}>("/api/network/internet/status").then(value => { if (!disposed) setInternetStatus(value); }).catch(() => undefined);
+    check();
+    const timer = window.setInterval(check, 15000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [authenticated]);
+
 
   const activeAlarms = alarms.filter(a => a.status === "active");
   const current = stations.find(s => s.id === selected);
@@ -169,26 +179,37 @@ export default function App() {
   async function enableNetworkAccess() {
     try {
       const result=await api<{ip:string;url:string}>("/api/network/nginx",{method:"POST"});
-      setNetworkInfo({ok:true,scope:"lan",url:result.url,message:`局域网 IP：${result.ip}\n访问地址：${result.url}`});
+      setNetworkInfo({ok:true,scope:"lan",url:result.url,message:`局域网 IP：${result.ip}\n控制中心：${result.url}\n数据采集：${result.url}/api/acquisition/auto-login?station_id=工站ID`});
     } catch(error) { setNetworkInfo({ok:false,scope:"lan",message:(error as Error).message}); }
   }
 
   async function enableRemoteAccess() {
     try {
       const result=await api<{ip:string;url:string}>("/api/network/remote",{method:"POST"});
-      setNetworkInfo({ok:true,scope:"remote",url:result.url,message:`远程网络 IP：${result.ip}\n访问地址：${result.url}\n访问设备需加入同一个 Tailscale 网络。`});
+      setNetworkInfo({ok:true,scope:"remote",url:result.url,message:`远程网络 IP：${result.ip}\n控制中心：${result.url}\n数据采集：${result.url}/api/acquisition/auto-login?station_id=工站ID\n访问设备需加入同一个 Tailscale 网络。`});
     } catch(error) {
       setNetworkInfo({ok:false,scope:"remote",message:(error as Error).message});
     }
   }
 
   async function enableInternetAccess() {
-    try {
-      const result=await api<{url:string}>("/api/network/internet",{method:"POST"});
-      setNetworkInfo({ok:true,scope:"internet",url:result.url,message:`互联网访问已开启\n公网地址：${result.url}\n任何获得该地址的人都可以打开登录页。`});
-    } catch(error) {
-      setNetworkInfo({ok:false,scope:"internet",message:(error as Error).message});
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const result=await api<{url:string;provider?:string;temporary?:boolean}>("/api/network/internet",{method:"POST"});
+        setInternetStatus({enabled:true,stale:false,url:result.url});
+        setNetworkInfo({ok:true,scope:"internet",url:result.url,message:`互联网访问已开启\n控制中心：${result.url}\n数据采集：${result.url}/api/acquisition/auto-login?station_id=工站ID\n电脑不关机且隧道进程在线时，会继续复用这个公网地址。`});
+        return;
+      } catch(error) {
+        lastError = error as Error;
+        const message = lastError.message || "";
+        const transient = /隧道|Cloudflare|localhost\.run|DNS|解析|连接|503/i.test(message);
+        if (!transient || attempt === 2) break;
+        setToast({kind:"ok",text:`公网隧道连接失败，正在自动重试（${attempt + 2}/3）…`});
+        await new Promise(resolve => window.setTimeout(resolve, 1500 * (attempt + 1)));
+      }
     }
+    setNetworkInfo({ok:false,scope:"internet",message:lastError?.message || "互联网访问开启失败"});
   }
 
   async function logout() { try { await api<void>("/api/auth/logout",{method:"POST"}); } finally { setAuthenticated(false); } }
@@ -219,9 +240,13 @@ export default function App() {
   async function deleteAlarms(ids: string[]) {
     if (!confirm("确认删除选中的 " + ids.length + " 条告警吗？")) return false;
     try {
-      const result = await api<{deleted:number}>("/api/alarms/delete-batch", {method:"POST", body:JSON.stringify({ids})});
+      let deleted = 0;
+      for (let index = 0; index < ids.length; index += 500) {
+        const result = await api<{deleted:number}>("/api/alarms/delete-batch", {method:"POST", body:JSON.stringify({ids:ids.slice(index,index+500)})});
+        deleted += result.deleted;
+      }
       await load();
-      setToast({kind:"ok", text:"已删除 " + result.deleted + " 条告警"});
+      setToast({kind:"ok", text:"已删除 " + deleted + " 条告警"});
       return true;
     } catch (error) {
       setToast({kind:"error", text:(error as Error).message});
@@ -237,7 +262,7 @@ export default function App() {
       <div className="brand"><div className="brand-mark"><Activity size={22}/></div><div><strong>AIRBOT</strong><span>工站控制中心</span></div></div>
       <nav>
         <button className={tab === "welcome" ? "active" : ""} onClick={() => setTab("welcome")}><Home/>欢迎首页</button>
-        <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Gauge/>运行总览</button>
+        <button className={tab === "overview" ? "active" : ""} onClick={() => setTab("overview")}><Gauge/>运行总览</button><button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")}><BarChart3/>数据分析</button>
         <button className={tab === "logs" ? "active" : ""} onClick={() => setTab("logs")}><FileText/>实时日志</button>
         <button className={tab === "alarms" ? "active" : ""} onClick={() => setTab("alarms")}><Bell/>告警中心{activeAlarms.length > 0 && <b>{activeAlarms.length}</b>}</button><button className={tab === "fsm" ? "active" : ""} onClick={() => setTab("fsm")}><Gauge/>状态机监控</button>
       </nav>
@@ -245,7 +270,7 @@ export default function App() {
     </aside>
 
     <main className={tab === "welcome" ? "welcome-main" : undefined}>
-      <header><div><h1>{tab === "welcome" ? "欢迎使用" : tab === "overview" ? "运行总览" : tab === "logs" ? "实时日志" : tab === "alarms" ? "告警中心" : "状态机监控"}</h1><p>{new Date().toLocaleDateString("zh-CN", {year: "numeric", month: "long", day: "numeric", weekday: "long"})}</p></div><div className="header-actions"><div className="access-action"><button className="ghost" onClick={enableNetworkAccess}><Globe2/>开启局域网访问</button><a className="network-help" href="/nginx-help.html" target="_blank" rel="noreferrer"><CircleHelp/>局域网开启说明</a></div><div className="access-action"><button className="ghost remote" onClick={enableRemoteAccess}><Wifi/>开启远程访问</button><a className="network-help" href="/remote-access-help.html" target="_blank" rel="noreferrer"><CircleHelp/>远程访问开启说明</a></div><div className="access-action"><button className="ghost internet" onClick={enableInternetAccess}><Globe2/>开启互联网访问</button><a className="network-help" href="/internet-access-help.html" target="_blank" rel="noreferrer"><CircleHelp/>互联网访问开启说明</a></div><button className="ghost" disabled={refreshing} onClick={refreshAll}>{refreshing?<Loader2 className="spin"/>:<RefreshCw size={16}/>} {refreshing?"刷新中":"刷新"}</button><button className="primary" onClick={() => setAddOpen(true)}><Plus size={17}/>添加工站</button></div></header>
+      <header><div><h1>{tab === "welcome" ? "欢迎使用" : tab === "overview" ? "运行总览" : tab === "analytics" ? "数据分析" : tab === "report" ? "异常总结报告" : tab === "logs" ? "实时日志" : tab === "alarms" ? "告警中心" : "状态机监控"}</h1><p>{new Date().toLocaleDateString("zh-CN", {year: "numeric", month: "long", day: "numeric", weekday: "long"})}</p></div><div className="header-actions"><div className="access-action"><button className="ghost" onClick={enableNetworkAccess}><Globe2/>开启局域网访问</button><a className="network-help" href="/nginx-help.html" target="_blank" rel="noreferrer"><CircleHelp/>局域网开启说明</a></div><div className="access-action"><button className="ghost remote" onClick={enableRemoteAccess}><Wifi/>开启远程访问</button><a className="network-help" href="/remote-access-help.html" target="_blank" rel="noreferrer"><CircleHelp/>远程访问开启说明</a></div><div className="access-action"><button className={"ghost internet "+(internetStatus.stale?"needs-refresh":"")} onClick={enableInternetAccess}><Globe2/>{internetStatus.stale?"公网地址需更新":"开启互联网访问"}{internetStatus.stale&&<b className="internet-warning">!</b>}</button><a className="network-help" href="/internet-access-help.html" target="_blank" rel="noreferrer"><CircleHelp/>互联网访问开启说明</a></div><button className="ghost" disabled={refreshing} onClick={refreshAll}>{refreshing?<Loader2 className="spin"/>:<RefreshCw size={16}/>} {refreshing?"刷新中":"刷新"}</button><button className="primary" onClick={() => setAddOpen(true)}><Plus size={17}/>添加工站</button></div></header>
 
       {tab === "welcome" && <WelcomeDashboard stations={orderedStations} alarms={alarms} onNavigate={setTab}/>}
       {tab === "overview" && <>
@@ -264,6 +289,8 @@ export default function App() {
       </>}
 
       {tab === "logs" && <LogView stations={orderedStations} selected={logStation} setSelected={value=>{setLogStation(value);setLogPage(1)}} logs={visibleLogs} sourceGroup={logSource} setSourceGroup={value=>{setLogSource(value);setLogPage(1)}} errorsOnly={errorsOnly} setErrorsOnly={value=>{setErrorsOnly(value);setLogPage(1)}} files={files} page={logPage} pages={logPages} total={logTotal} onPage={setLogPage} onDelete={deleteLogFiles} onClear={clearTodayLogs} clearing={busy==="logs:clear"}/>} 
+      {tab === "analytics" && <AnalyticsView stations={orderedStations} alarms={alarms} onOpenReport={()=>setTab("report")}/>}
+      {tab === "report" && <AnomalyReportView stations={orderedStations} alarms={alarms} onBack={()=>setTab("analytics")}/>}
       {tab === "fsm" && <FsmMonitor stations={orderedStations}/>}
       {tab === "alarms" && <AlarmView alarms={alarms} stations={orderedStations} onAck={async id => {await api("/api/alarms/"+id+"/acknowledge", {method:"POST"}); await load();}} onAckAll={acknowledgeAllAlarms} onDelete={deleteAlarms}/>}
     </main>
@@ -284,6 +311,53 @@ function LoginPage({onLogin}:{onLogin:(username:string,password:string)=>Promise
   async function submit(event:React.FormEvent){event.preventDefault();setSubmitting(true);setError("");try{await onLogin(username,password)}catch(exc){setError((exc as Error).message)}finally{setSubmitting(false)}}
   return <div className="login-page"><section className="login-visual"><div className="brand-mark"><Activity/></div><h1>AIRBOT 工站控制中心</h1><p>集中监控机械臂、数据采集、日志与告警</p><div className="login-orbits"><span/><span/><Bot/></div></section><form className="login-card" onSubmit={submit}><small>WELCOME BACK</small><h2>登录控制中心</h2><p>请输入管理员账号继续</p><label>账号<input autoFocus value={username} onChange={e=>setUsername(e.target.value)}/></label><label>密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)}/></label>{error&&<div className="form-error">{error}</div>}<button className="primary" disabled={submitting}>{submitting?<Loader2 className="spin"/>:"登录"}</button><em>默认账号 admin · 密码 040712</em></form></div>;
 }
+
+function AnalyticsView({stations,alarms,onOpenReport}:{stations:Station[];alarms:Alarm[];onOpenReport:()=>void}) {
+  const total=stations.length, online=stations.filter(s=>s.online||s.agent_online).length;
+  const robotRunning=stations.filter(s=>s.robot_state==="running").length, collectionRunning=stations.filter(s=>s.collection_state==="running").length;
+  const activeAlarms=alarms.filter(a=>a.status==="active").length;
+  const cpuValues=stations.map(s=>s.cpu_total).filter((v):v is number=>typeof v==="number");
+  const temperatures=stations.flatMap(s=>Object.values(s.temperatures||{}));
+  const avgCpu=cpuValues.length?cpuValues.reduce((a,b)=>a+b,0)/cpuValues.length:0, maxTemp=temperatures.length?Math.max(...temperatures):0;
+  const rate=(value:number)=>total?Math.round(value/total*100):0;
+  return <section className="analytics-page"><div className="analytics-intro"><div><span className="hero-eyebrow">OPERATIONS ANALYTICS</span><h2>工站运行数据分析</h2><p>基于当前实时遥测、程序状态和告警数据生成。</p></div><span className="analytics-updated"><i/>实时更新</span><button className="report-secret" onClick={onOpenReport} title="异常总结报告"><FileText/>报告</button></div>
+    <section className="metrics analytics-metrics"><Metric icon={<Server/>} label="在线率" value={rate(online)+"%"} suffix={online+" / "+total+" 台"} color="blue"/><Metric icon={<Bot/>} label="机械臂运行率" value={rate(robotRunning)+"%"} suffix={robotRunning+" 台运行"} color="purple"/><Metric icon={<Activity/>} label="数据采集运行率" value={rate(collectionRunning)+"%"} suffix={collectionRunning+" 台运行"} color="green"/><Metric icon={<AlertTriangle/>} label="活动告警" value={String(activeAlarms)} suffix="条" color={activeAlarms?"red":"green"}/></section>
+    <div className="analytics-grid"><article className="analysis-card"><header><div><strong>资源负载</strong><small>CPU 与温度汇总</small></div><span className="card-icon blue"><BarChart3/></span></header><div className="analysis-stat"><span>平均 CPU</span><b>{avgCpu.toFixed(1)}%</b><i><em style={{width:Math.min(100,avgCpu)+"%"}}/></i></div><div className="analysis-stat"><span>最高温度</span><b>{maxTemp?maxTemp.toFixed(1)+" °C":"—"}</b><i className="warm"><em style={{width:Math.min(100,maxTemp)+"%"}}/></i></div><p className="analysis-note">{maxTemp>80?"温度偏高，请检查对应工站":"当前资源指标处于可观察范围"}</p></article><article className="analysis-card"><header><div><strong>状态分布</strong><small>各类运行状态占比</small></div><span className="card-icon purple"><Gauge/></span></header><AnalysisBar label="监控在线" value={online} total={total} color="#4c72e8"/><AnalysisBar label="机械臂运行" value={robotRunning} total={total} color="#7357e8"/><AnalysisBar label="数采运行" value={collectionRunning} total={total} color="#16a36a"/></article></div>
+    <article className="analysis-card station-analysis"><header><div><strong>工站对比</strong><small>实时 CPU、程序状态与告警</small></div><span>{total} 台工站</span></header><div className="analysis-table"><div className="analysis-row analysis-head"><span>工站</span><span>连接</span><span>CPU</span><span>机械臂</span><span>数采</span><span>告警</span></div>{stations.map(station=><div className="analysis-row" key={station.id}><strong>{station.name}<small>{station.ip}</small></strong><span className={station.online||station.agent_online?"status-good":"status-bad"}>{station.online||station.agent_online?"在线":"离线"}</span><span>{pct(station.cpu_total)}</span><span>{stateLabel[station.robot_state]}</span><span>{stateLabel[station.collection_state]}</span><span className={station.active_alarm_count?"status-bad":"status-good"}>{station.active_alarm_count||"正常"}</span></div>)}{!total&&<div className="empty"><Server/><p>暂无工站数据</p></div>}</div></article>
+  </section>;
+}
+function AnomalyReportView({stations,alarms,onBack}:{stations:Station[];alarms:Alarm[];onBack:()=>void}) {
+  const active=alarms.filter(a=>a.status==="active"), offline=stations.filter(s=>!(s.online||s.agent_online));
+  const failed=stations.filter(s=>s.robot_state==="failed"||s.collection_state==="failed");
+  const generated=new Date();
+  const stationName=(id:string)=>stations.find(s=>s.id===id)?.name||id;
+  const lines=[
+    "# AIRBOT 工站异常总结报告",
+    "",
+    "生成时间：" + generated.toLocaleString("zh-CN"),
+    "",
+    "## 总体概况",
+    "- 工站总数：" + stations.length,
+    "- 当前离线：" + offline.length,
+    "- 活动告警：" + active.length,
+    "- 程序异常工站：" + failed.length,
+    "",
+    "## 活动告警",
+    ...(active.length?active.map(a=>"- ["+a.severity+"] "+stationName(a.station_id)+"： "+a.message+"（最近发生："+formatTime(a.last_at)+"）"):["- 当前没有活动告警"]),
+    "",
+    "## 离线工站",
+    ...(offline.length?offline.map(s=>"- "+s.name+"（"+s.ip+"）"):["- 当前没有离线工站"]),
+    "",
+    "## 程序异常",
+    ...(failed.length?failed.map(s=>"- "+s.name+"：机械臂 "+stateLabel[s.robot_state]+"，数据采集 "+stateLabel[s.collection_state]):["- 当前没有程序异常"]),
+    "",
+    "## 建议",
+    active.length||offline.length||failed.length?"- 优先检查活动告警和离线工站的网络、SSH 与现场设备状态。":"- 当前没有检测到明显异常，建议继续保持实时监控。"
+  ];
+  function exportReport(){const blob=new Blob([lines.join("\n")],{type:"text/markdown;charset=utf-8"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="airbot-异常总结-"+generated.toISOString().slice(0,10)+".md";a.click();URL.revokeObjectURL(url)}
+  return <section className="report-page"><div className="report-toolbar"><button onClick={onBack}><ChevronRight style={{transform:"rotate(180deg)"}}/>返回数据分析</button><button className="primary" onClick={exportReport}><Download/>导出异常总结文档</button></div><article className="report-document"><header><span className="hero-eyebrow">AIRBOT INCIDENT REVIEW</span><h2>工站异常总结报告</h2><p>生成时间：{generated.toLocaleString("zh-CN")}</p></header><section className="report-summary"><div><b>{active.length}</b><span>活动告警</span></div><div><b>{offline.length}</b><span>离线工站</span></div><div><b>{failed.length}</b><span>程序异常</span></div></section><h3>活动告警</h3>{active.length?active.map(a=><div className="report-item" key={a.id}><strong>{stationName(a.station_id)}</strong><span>{a.severity} · {formatTime(a.last_at)}</span><p>{a.message}</p></div>):<p className="report-empty">当前没有活动告警。</p>}<h3>离线工站</h3>{offline.length?offline.map(s=><div className="report-item" key={s.id}><strong>{s.name}</strong><span>{s.ip}</span><p>当前无法获得在线心跳或 Agent 状态。</p></div>):<p className="report-empty">当前没有离线工站。</p>}<h3>处理建议</h3><p className="report-advice">{active.length||offline.length||failed.length?"优先检查活动告警、网络连接、SSH 可达性和现场设备状态。":"当前未发现明显异常，建议保持实时监控。"}</p></article></section>;
+}
+function AnalysisBar({label,value,total,color}:{label:string;value:number;total:number;color:string}) { const width=total?value/total*100:0; return <div className="analysis-bar"><label><span>{label}</span><b>{value} / {total}</b></label><i><em style={{width:width+"%",background:color}}/></i></div>; }
 
 function WelcomeDashboard({stations,alarms,onNavigate}:{stations:Station[];alarms:Alarm[];onNavigate:(tab:"welcome"|"overview"|"logs"|"alarms")=>void}) {
   const online=stations.filter(s=>s.agent_online||s.online).length, offline=stations.length-online, robot=stations.filter(s=>s.robot_state==="running").length, collection=stations.filter(s=>s.collection_state==="running").length, active=alarms.filter(a=>a.status==="active").length;
@@ -402,30 +476,31 @@ type RemoteFile = {name:string;path:string;is_dir:boolean;size:number;mtime?:num
 
 function TerminalPane({station,credentials,active}:{station:Station;credentials:TerminalCredentials;active:boolean}) {
   const container=useRef<HTMLDivElement>(null), socketRef=useRef<WebSocket|null>(null), uploadRef=useRef<HTMLInputElement>(null);
-  const fitRef=useRef<FitAddon|null>(null), pendingMode=useRef<"download"|"preview">("download");
+  const fitRef=useRef<FitAddon|null>(null), pendingMode=useRef<"download"|"preview">("download"),pendingPath=useRef("");
   const [remotePath,setRemotePath]=useState("."), [files,setRemoteFiles]=useState<RemoteFile[]>([]), [fileBusy,setFileBusy]=useState(false);
-  const [preview,setPreview]=useState<{name:string;url?:string;text?:string}|null>(null);
+  const [preview,setPreview]=useState<{name:string;path:string;url?:string;text?:string;editable?:boolean}|null>(null); const [saveState,setSaveState]=useState<"saved"|"saving"|"error">("saved"); const saveTimer=useRef<number|undefined>(undefined);
   function send(payload:object){const socket=socketRef.current;if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(payload));}
   function list(path:string){setFileBusy(true);send({type:"file_list",path});}
   function parentPath(path:string){if(path==="."||path==="/")return path;const clean=path.replace(/\/$/,""),index=clean.lastIndexOf("/");return index<=0?"/":clean.slice(0,index);}
-  function requestFile(file:RemoteFile,mode:"download"|"preview"){if(file.is_dir){setRemotePath(file.path);list(file.path);return}pendingMode.current=mode;setFileBusy(true);send({type:"file_download",path:file.path});}
-  function receiveFile(name:string,data:string){const raw=atob(data),content=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)content[i]=raw.charCodeAt(i);const ext=name.split(".").pop()?.toLowerCase()||"";if(pendingMode.current==="preview"){if(["png","jpg","jpeg","gif","webp","svg"].includes(ext)){const type=ext==="svg"?"image/svg+xml":`image/${ext==="jpg"?"jpeg":ext}`;setPreview({name,url:URL.createObjectURL(new Blob([content],{type}))})}else if(["txt","log","json","yaml","yml","toml","ini","conf","cfg","xml","csv","md","py","sh","js","ts","tsx","css","html"].includes(ext)){setPreview({name,text:new TextDecoder().decode(content)})}else setPreview({name,text:"该文件为二进制格式，请下载后查看。"})}else{const url=URL.createObjectURL(new Blob([content])),link=document.createElement("a");link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}setFileBusy(false)}
-  function upload(file?:File){if(!file)return;if(file.size>20*1024*1024){alert("单个上传文件不能超过 20 MB");return}setFileBusy(true);const reader=new FileReader();reader.onload=()=>send({type:"file_upload",path:remotePath,name:file.name,data:String(reader.result).split(",")[1]||""});reader.onerror=()=>setFileBusy(false);reader.readAsDataURL(file)}
+  function requestFile(file:RemoteFile,mode:"download"|"preview"){if(file.is_dir){setRemotePath(file.path);list(file.path);return}pendingMode.current=mode;pendingPath.current=file.path;setFileBusy(true);send({type:"file_download",path:file.path});}
+  function receiveFile(name:string,data:string){const raw=atob(data),content=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)content[i]=raw.charCodeAt(i);const ext=name.split(".").pop()?.toLowerCase()||"";if(pendingMode.current==="preview"){if(["png","jpg","jpeg","gif","webp","svg"].includes(ext)){const type=ext==="svg"?"image/svg+xml":`image/${ext==="jpg"?"jpeg":ext}`;setPreview({name,path:pendingPath.current,url:URL.createObjectURL(new Blob([content],{type}))})}else if(["txt","log","json","yaml","yml","toml","ini","conf","cfg","xml","csv","md","py","sh","js","ts","tsx","css","html"].includes(ext)){setPreview({name,path:pendingPath.current,text:new TextDecoder().decode(content),editable:true});setSaveState("saved")}else setPreview({name,path:pendingPath.current,text:"该文件为二进制格式，请下载后查看。"})}else{const url=URL.createObjectURL(new Blob([content])),link=document.createElement("a");link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}setFileBusy(false)}
+  function editPreview(text:string){if(!preview?.editable)return;setPreview({...preview,text});setSaveState("saving");window.clearTimeout(saveTimer.current);saveTimer.current=window.setTimeout(()=>{const data=btoa(unescape(encodeURIComponent(text)));send({type:"file_write",path:preview.path,data})},700)} function upload(file?:File){if(!file)return;if(file.size>20*1024*1024){alert("单个上传文件不能超过 20 MB");return}setFileBusy(true);const reader=new FileReader();reader.onload=()=>send({type:"file_upload",path:remotePath,name:file.name,data:String(reader.result).split(",")[1]||""});reader.onerror=()=>setFileBusy(false);reader.readAsDataURL(file)}
   useEffect(()=>{
     if(!container.current)return;let disposed=false,retryTimer:number|undefined,retryDelay=1000;
     const terminal=new XTerm({cursorBlink:true,fontSize:13,fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",theme:{background:"#0b0f16",foreground:"#d7dee9",cursor:"#7aa2f7",selectionBackground:"#334155"},scrollback:5000});
     const fit=new FitAddon();fitRef.current=fit;terminal.loadAddon(fit);terminal.open(container.current);fit.fit();
-    const connect=()=>{if(disposed)return;terminal.writeln("\r\n\x1b[36m正在建立 SSH 连接…\x1b[0m");const socket=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/terminal/${station.id}`);socket.binaryType="arraybuffer";socketRef.current=socket;socket.onopen=()=>socket.send(JSON.stringify({...credentials,cols:terminal.cols,rows:terminal.rows}));socket.onmessage=event=>{if(typeof event.data!=="string"){terminal.write(new Uint8Array(event.data));return}const message=JSON.parse(event.data);if(message.type==="error"){terminal.writeln(`\r\n\x1b[31m${message.message}\x1b[0m`);setFileBusy(false)}else if(message.type==="connected"){terminal.writeln("\r\n\x1b[32mSSH 已连接\x1b[0m");retryDelay=1000;setFileBusy(true);socket.send(JSON.stringify({type:"file_list",path:"."}))}else if(message.type==="file_list"){setRemotePath(message.path);setRemoteFiles(message.entries);setFileBusy(false)}else if(message.type==="file_uploaded"){socket.send(JSON.stringify({type:"file_list",path:message.path}))}else if(message.type==="file_download")receiveFile(message.name,message.data)};socket.onclose=()=>{if(disposed)return;terminal.writeln(`\r\n\x1b[33mSSH 已断开，${Math.round(retryDelay/1000)} 秒后自动重连…\x1b[0m`);retryTimer=window.setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,15000)}};connect();
+    const connect=()=>{if(disposed)return;terminal.writeln("\r\n\x1b[36m正在建立 SSH 连接…\x1b[0m");const socket=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/ws/terminal/${station.id}`);socket.binaryType="arraybuffer";socketRef.current=socket;socket.onopen=()=>socket.send(JSON.stringify({...credentials,cols:terminal.cols,rows:terminal.rows}));socket.onmessage=event=>{if(typeof event.data!=="string"){terminal.write(new Uint8Array(event.data));return}const message=JSON.parse(event.data);if(message.type==="error"){terminal.writeln(`\r\n\x1b[31m${message.message}\x1b[0m`);setFileBusy(false)}else if(message.type==="connected"){terminal.writeln("\r\n\x1b[32mSSH 已连接\x1b[0m");retryDelay=1000;setFileBusy(true);socket.send(JSON.stringify({type:"file_list",path:"."}))}else if(message.type==="file_list"){setRemotePath(message.path);setRemoteFiles(message.entries);setFileBusy(false)}else if(message.type==="file_uploaded"){socket.send(JSON.stringify({type:"file_list",path:message.path}))}else if(message.type==="file_download")receiveFile(message.name,message.data);else if(message.type==="file_written")setSaveState("saved")};socket.onclose=()=>{if(disposed)return;terminal.writeln(`\r\n\x1b[33mSSH 已断开，${Math.round(retryDelay/1000)} 秒后自动重连…\x1b[0m`);retryTimer=window.setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,15000)}};connect();
     const input=terminal.onData(data=>{const socket=socketRef.current;if(socket?.readyState===WebSocket.OPEN)socket.send(new TextEncoder().encode(data))});
     const observer=new ResizeObserver(()=>{if(!active)return;fit.fit();const socket=socketRef.current;if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"resize",cols:terminal.cols,rows:terminal.rows}))});observer.observe(container.current);
     return()=>{disposed=true;window.clearTimeout(retryTimer);observer.disconnect();input.dispose();socketRef.current?.close();socketRef.current=null;terminal.dispose()};
   },[station.id,credentials]);
   useEffect(()=>{if(active)setTimeout(()=>fitRef.current?.fit(),20)},[active]);
-  return <div className={`terminal-pane ${active?"active":""}`}><div className="terminal-layout"><div className="xterm-host" ref={container}/><aside className="remote-files"><header><div><Folder/><strong>远端文件</strong></div><button disabled={fileBusy} onClick={()=>uploadRef.current?.click()}><Upload/>上传</button><input ref={uploadRef} hidden type="file" onChange={e=>{upload(e.target.files?.[0]);e.target.value=""}}/></header><div className="remote-path"><button disabled={fileBusy} onClick={()=>{const path=parentPath(remotePath);setRemotePath(path);list(path)}}>↑</button><input value={remotePath} onChange={e=>setRemotePath(e.target.value)} onKeyDown={e=>e.key==="Enter"&&list(remotePath)}/><button disabled={fileBusy} onClick={()=>list(remotePath)}>{fileBusy?<Loader2 className="spin"/>:<RefreshCw/>}</button></div><div className="remote-list">{files.map(file=><div key={file.path} onDoubleClick={()=>requestFile(file,"preview")}><span onClick={()=>requestFile(file,"preview")}>{file.is_dir?<Folder/>:<FileText/>}<b>{file.name}</b><small>{file.is_dir?"目录":bytes(file.size)}</small></span>{!file.is_dir&&<button title="下载" onClick={()=>requestFile(file,"download")}><Download/></button>}</div>)}{!files.length&&!fileBusy&&<p>目录为空</p>}</div></aside></div>{preview&&<div className="file-preview"><header><strong>{preview.name}</strong><button onClick={()=>{if(preview.url)URL.revokeObjectURL(preview.url);setPreview(null)}}><X/></button></header>{preview.url?<img src={preview.url}/>:<pre>{preview.text}</pre>}</div>}</div>;
+  return <div className={`terminal-pane ${active?"active":""}`}><div className="terminal-layout"><div className="xterm-host" ref={container}/><aside className="remote-files"><header><div><Folder/><strong>远端文件</strong></div><button disabled={fileBusy} onClick={()=>uploadRef.current?.click()}><Upload/>上传</button><input ref={uploadRef} hidden type="file" onChange={e=>{upload(e.target.files?.[0]);e.target.value=""}}/></header><div className="remote-path"><button disabled={fileBusy} onClick={()=>{const path=parentPath(remotePath);setRemotePath(path);list(path)}}>↑</button><input value={remotePath} onChange={e=>setRemotePath(e.target.value)} onKeyDown={e=>e.key==="Enter"&&list(remotePath)}/><button disabled={fileBusy} onClick={()=>list(remotePath)}>{fileBusy?<Loader2 className="spin"/>:<RefreshCw/>}</button></div><div className="remote-list">{files.map(file=><div key={file.path} onDoubleClick={()=>requestFile(file,"preview")}><span onClick={()=>requestFile(file,"preview")}>{file.is_dir?<Folder/>:<FileText/>}<b>{file.name}</b><small>{file.is_dir?"目录":bytes(file.size)}</small></span>{!file.is_dir&&<button title="下载" onClick={()=>requestFile(file,"download")}><Download/></button>}</div>)}{!files.length&&!fileBusy&&<p>目录为空</p>}</div></aside></div>{preview&&<div className="file-preview"><header><strong>{preview.name}</strong>{preview.editable&&<small className={"save-state "+saveState}>{saveState==="saving"?"保存中…":saveState==="error"?"保存失败":"已自动保存"}</small>}<button onClick={()=>{if(preview.url)URL.revokeObjectURL(preview.url);setPreview(null)}}><X/></button></header>{preview.url?<img src={preview.url}/>:preview.editable?<textarea value={preview.text||""} onChange={e=>editPreview(e.target.value)} spellCheck={false}/>:<pre>{preview.text}</pre>}</div>}</div>;
 }
 
 function LogView({stations,selected,setSelected,logs,sourceGroup,setSourceGroup,errorsOnly,setErrorsOnly,files,page,pages,total,onPage,onDelete,onClear,clearing}:{stations:Station[];selected:string|null;setSelected:(v:string|null)=>void;logs:LogEntry[];sourceGroup:"all"|"robot"|"collection";setSourceGroup:(value:"all"|"robot"|"collection")=>void;errorsOnly:boolean;setErrorsOnly:(v:boolean)=>void;files:LogFile[];page:number;pages:number;total:number;onPage:(page:number)=>void;onDelete:(paths:string[])=>Promise<void>;onClear:()=>Promise<void>;clearing:boolean}) {
   const [checked,setChecked]=useState<string[]>([]);
+  const [expandedGroups,setExpandedGroups]=useState<Set<string>>(()=>new Set());
   const [deleting,setDeleting]=useState(false);
   const visibleFiles=useMemo(()=>files.filter(file=>(!selected||file.station_id===selected)&&matchesLogSource(file.source,sourceGroup)),[files,selected,sourceGroup]);
   useEffect(()=>setChecked(current=>current.filter(path=>visibleFiles.some(file=>file.path===path))),[visibleFiles]);
@@ -449,25 +524,11 @@ function FsmMonitor({stations}:{stations:Station[]}) {
 }
 
 function AlarmView({alarms,stations,onAck,onAckAll,onDelete}:{alarms:Alarm[];stations:Station[];onAck:(id:string)=>void;onAckAll:()=>Promise<void>;onDelete:(ids:string[])=>Promise<boolean>}) {
-  const [checked,setChecked]=useState<string[]>([]);
-  const [deleting,setDeleting]=useState(false);
-  useEffect(()=>setChecked(current=>current.filter(id=>alarms.some(alarm=>alarm.id===id))),[alarms]);
-  const allChecked=alarms.length>0&&alarms.every(alarm=>checked.includes(alarm.id));
-  const activeCount=alarms.filter(alarm=>alarm.status==="active").length;
-  const groups=useMemo(()=>{
-    const stationById=new Map(stations.map(station=>[station.id,station]));
-    const alarmsByStation=new Map<string,Alarm[]>();
-    alarms.forEach(alarm=>alarmsByStation.set(alarm.station_id,[...(alarmsByStation.get(alarm.station_id)||[]),alarm]));
-    return [...alarmsByStation.entries()].map(([stationId,items])=>({station:stationById.get(stationId),stationId,items})).sort((a,b)=>{
-      const aIndex=stations.findIndex(station=>station.id===a.stationId);
-      const bIndex=stations.findIndex(station=>station.id===b.stationId);
-      return (aIndex<0?Number.MAX_SAFE_INTEGER:aIndex)-(bIndex<0?Number.MAX_SAFE_INTEGER:bIndex);
-    });
-  },[alarms,stations]);
-  function toggle(id:string){setChecked(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);}
-  function toggleGroup(items:Alarm[]){const ids=items.map(alarm=>alarm.id);const selected=ids.every(id=>checked.includes(id));setChecked(current=>selected?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])]);}
-  async function removeChecked(){if(!checked.length)return;setDeleting(true);try{if(await onDelete(checked))setChecked([]);}finally{setDeleting(false);}}
-  return <div className="panel alarm-list"><div className="alarm-actions"><button className="primary" disabled={!activeCount} onClick={onAckAll}><CheckCircle2/>一键已读 ({activeCount})</button><span/><label className="alarm-check"><input type="checkbox" checked={allChecked} disabled={!alarms.length} onChange={()=>setChecked(allChecked?[]:alarms.map(alarm=>alarm.id))}/>全选</label><button className="danger" disabled={!checked.length||deleting} onClick={removeChecked}>{deleting?<Loader2 className="spin"/>:<Trash2/>}批量删除 ({checked.length})</button></div>{groups.map(({station,stationId,items})=>{const groupChecked=items.every(alarm=>checked.includes(alarm.id));const groupActive=items.filter(alarm=>alarm.status==="active").length;return <section className="station-alarm-group" key={stationId}><header><label className="alarm-check"><input type="checkbox" checked={groupChecked} onChange={()=>toggleGroup(items)}/></label><div><strong>{station?.name||"未知工站"}</strong><small>{station?.ip||stationId}</small></div><span>{items.length} 条 · 活动 {groupActive} 条</span></header>{items.map(alarm=><div key={alarm.id} className={"alarm-row "+alarm.severity+" "+alarm.status}><label className="alarm-check alarm-select"><input type="checkbox" checked={checked.includes(alarm.id)} onChange={()=>toggle(alarm.id)}/></label><div className="alarm-icon"><AlertTriangle/></div><div><header><span>{alarm.severity==="critical"?"严重":"警告"}</span><time>{formatTime(alarm.last_at)}</time></header><p>{alarm.message}</p><small>首次发生：{formatTime(alarm.first_at)} · 状态：{alarm.status}</small></div>{alarm.status==="active"&&<button onClick={()=>onAck(alarm.id)}>标为已读</button>}</div>)}</section>})}{alarms.length===0&&<div className="empty"><CheckCircle2/><p>当前没有告警</p></div>}</div>;
+  const [checked,setChecked]=useState<string[]>([]); const [expandedGroups,setExpandedGroups]=useState<Set<string>>(()=>new Set()); const [deleting,setDeleting]=useState(false);
+  useEffect(()=>setChecked(current=>current.filter(id=>alarms.some(alarm=>alarm.id===id))),[alarms]); const allChecked=alarms.length>0&&alarms.every(alarm=>checked.includes(alarm.id)); const activeCount=alarms.filter(alarm=>alarm.status==="active").length;
+  const groups=useMemo(()=>{const map=new Map(stations.map(station=>[station.id,station]));const grouped=new Map<string,Alarm[]>();alarms.forEach(alarm=>grouped.set(alarm.station_id,[...(grouped.get(alarm.station_id)||[]),alarm]));return [...grouped.entries()].map(([stationId,items])=>({station:map.get(stationId),stationId,items})).sort((a,b)=>stations.findIndex(x=>x.id===a.stationId)-stations.findIndex(x=>x.id===b.stationId));},[alarms,stations]);
+  function toggle(id:string){setChecked(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);} function toggleGroup(items:Alarm[]){const ids=items.map(x=>x.id);const selected=ids.every(id=>checked.includes(id));setChecked(current=>selected?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])]);} function toggleExpanded(id:string){setExpandedGroups(current=>{const next=new Set(current);next.has(id)?next.delete(id):next.add(id);return next;});} async function removeChecked(){if(!checked.length)return;setDeleting(true);try{if(await onDelete(checked))setChecked([]);}finally{setDeleting(false);}}
+  return <div className="panel alarm-list"><div className="alarm-actions"><button className="primary" disabled={!activeCount} onClick={onAckAll}><CheckCircle2/>一键已读 ({activeCount})</button><span/><label className="alarm-check"><input type="checkbox" checked={allChecked} disabled={!alarms.length} onChange={()=>setChecked(allChecked?[]:alarms.map(x=>x.id))}/>全选</label><button className="danger" disabled={!checked.length||deleting} onClick={removeChecked}>{deleting?<Loader2 className="spin"/>:<Trash2/>}批量删除 ({checked.length})</button></div>{groups.map(({station,stationId,items})=>{const expanded=expandedGroups.has(stationId),groupChecked=items.every(x=>checked.includes(x.id)),criticalCount=items.filter(x=>x.severity==="critical").length,warningCount=items.filter(x=>x.severity!=="critical").length,groupActive=items.filter(x=>x.status==="active").length;return <section className="station-alarm-group" key={stationId}><header><label className="alarm-check"><input type="checkbox" checked={groupChecked} onChange={()=>toggleGroup(items)} aria-label={`选择${station?.name||"未知工站"}的全部告警`}/></label><button type="button" className="alarm-group-toggle" aria-expanded={expanded} onClick={()=>toggleExpanded(stationId)}><div><strong>{station?.name||"未知工站"}</strong><small>{station?.ip||stationId}</small></div><span>错误 {criticalCount} 条 · 警告 {warningCount} 条 · 活动 {groupActive} 条</span><ChevronRight/></button></header>{expanded&&<div className="alarm-group-content">{items.map(alarm=><div key={alarm.id} className={`alarm-row ${alarm.severity} ${alarm.status}`}><label className="alarm-check alarm-select"><input type="checkbox" checked={checked.includes(alarm.id)} onChange={()=>toggle(alarm.id)}/></label><div className="alarm-icon"><AlertTriangle/></div><div><header><span>{alarm.severity==="critical"?"严重":"警告"}</span><time>{formatTime(alarm.last_at)}</time></header><p>{alarm.message}</p><small>首次发生：{formatTime(alarm.first_at)} · 状态：{alarm.status}</small></div>{alarm.status==="active"&&<button onClick={()=>onAck(alarm.id)}>标为已读</button>}</div>)}</div>}</section>})}{!alarms.length&&<div className="empty"><CheckCircle2/><p>当前没有告警</p></div>}</div>;
 }
 
 function EditStation({station,onClose,onSaved,onDeleted}:{station:Station;onClose:()=>void;onSaved:()=>void;onDeleted:()=>void}) {

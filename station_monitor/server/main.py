@@ -51,6 +51,7 @@ SESSION_COOKIE = "airbot_session"
 SESSIONS: set[str] = set()
 INTERNET_TUNNEL_PROCESS: asyncio.subprocess.Process | None = None
 INTERNET_TUNNEL_URL: str | None = None
+INTERNET_TUNNEL_CHECK_FAILURES = 0
 
 
 def authenticated(request: Request) -> bool:
@@ -123,7 +124,7 @@ app = FastAPI(title="AIRBOT 五工站监控平台", version="0.1.0", lifespan=li
 
 @app.middleware("http")
 async def require_browser_auth(request: Request, call_next):
-    if request.url.path.startswith("/api/") and request.url.path != "/api/auth/login" and not authenticated(request):
+    if request.url.path.startswith("/api/") and request.url.path not in {"/api/auth/login", "/api/acquisition/auto-login"} and not authenticated(request):
         return Response(content='{"detail":"未登录或会话已过期"}', status_code=401, media_type="application/json")
     return await call_next(request)
 
@@ -136,7 +137,7 @@ async def login(item: LoginRequest, response: Response):
         raise HTTPException(401, "账号或密码错误")
     token = secrets.token_urlsafe(32)
     SESSIONS.add(token)
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict", max_age=12 * 3600)
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", path="/", max_age=12 * 3600)
 
 
 @app.get("/api/auth/me")
@@ -506,6 +507,68 @@ def acquisition_login() -> dict:
     return result
 
 
+
+def proxy_acquisition_upstream(path: str, request: Request) -> Response:
+    target = f"{runtime.config.acquisition_base_url.rstrip('/')}/{path.lstrip('/')}"
+    if request.url.query:
+        target += "?" + request.url.query
+    body = request.scope.get("_body", b"")
+    headers = {key: value for key, value in request.headers.items() if key.lower() in {"content-type", "accept", "cookie", "authorization"}}
+    req = urllib.request.Request(target, data=body or None, headers=headers, method=request.method)
+    with urllib.request.urlopen(req, timeout=20) as upstream:
+        content_type = upstream.headers.get("Content-Type", "application/octet-stream")
+        return Response(content=upstream.read(), status_code=upstream.status, media_type=content_type.split(";", 1)[0])
+
+
+async def acquisition_upstream_response(path: str, request: Request) -> Response:
+    request.scope["_body"] = await request.body()
+    try:
+        return await asyncio.to_thread(proxy_acquisition_upstream, path, request)
+    except (OSError, urllib.error.URLError) as exc:
+        raise HTTPException(502, f"数据采集页面代理失败：{exc}") from exc
+
+
+@app.api_route("/acquisition/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], response_class=Response)
+async def acquisition_proxy(path: str, request: Request):
+    """Proxy the browser-facing acquisition app through the monitor origin."""
+    return await acquisition_upstream_response(f"acquisition/{path}", request)
+
+
+@app.api_route("/assets/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], response_class=Response)
+async def acquisition_assets_proxy(path: str, request: Request):
+    return await acquisition_upstream_response(f"assets/{path}", request)
+
+
+@app.api_route("/dataserver/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], response_class=Response)
+async def acquisition_dataserver_proxy(path: str, request: Request):
+    return await acquisition_upstream_response(f"dataserver/{path}", request)
+
+
+@app.api_route("/usermanger/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], response_class=Response)
+async def acquisition_usermanger_proxy(path: str, request: Request):
+    return await acquisition_upstream_response(f"usermanger/{path}", request)
+
+
+@app.api_route("/fonts/{path:path}", methods=["GET"], response_class=Response)
+async def acquisition_fonts_proxy(path: str, request: Request):
+    return await acquisition_upstream_response(f"fonts/{path}", request)
+
+
+@app.get("/logo.png", response_class=Response)
+async def acquisition_logo_proxy(request: Request):
+    return await acquisition_upstream_response("logo.png", request)
+
+
+@app.get("/aws-sdk.min.js", response_class=Response)
+async def acquisition_aws_sdk_proxy(request: Request):
+    return await acquisition_upstream_response("aws-sdk.min.js", request)
+
+
+@app.get("/msgpack5.min.js", response_class=Response)
+async def acquisition_msgpack_proxy(request: Request):
+    return await acquisition_upstream_response("msgpack5.min.js", request)
+
+
 @app.get("/api/acquisition/auto-login", response_class=HTMLResponse)
 async def acquisition_auto_login(station_id: str):
     station = await runtime.db.fetch_one("SELECT ip,acquisition_project_id FROM stations WHERE id=?", (station_id,))
@@ -516,8 +579,11 @@ async def acquisition_auto_login(station_id: str):
         raise HTTPException(422, "该工站尚未配置数据采集项目 ID")
     try:
         login = await asyncio.to_thread(acquisition_login)
-    except (OSError, urllib.error.URLError, RuntimeError, ValueError) as exc:
-        raise HTTPException(502, f"数采系统自动登录失败：{exc}") from exc
+    except (OSError, urllib.error.URLError, RuntimeError, ValueError):
+        # Keep the acquisition entry usable when the upstream login service is
+        # temporarily unreachable; the browser can still open its login page.
+        fallback = f"/acquisition/project?project_id={project_id}"
+        return HTMLResponse(f"<!doctype html><meta charset=\"utf-8\"><title>数据采集登录</title><p>正在打开数据采集登录页…</p><script>location.replace({json.dumps(fallback)});</script>")
     values = {
         "myMicroAppToken": login["access_token"],
         "myMicroAppRefreshToken": login.get("refresh_token", ""),
@@ -660,10 +726,38 @@ async def drain_process_output(process: asyncio.subprocess.Process) -> None:
         pass
 
 
+async def tunnel_url_alive(url: str) -> bool:
+    """Return true if an existing temporary tunnel URL still reaches this app."""
+    def _probe() -> bool:
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "station-monitor"}, method="HEAD")
+            with urllib.request.urlopen(request, timeout=4) as response:
+                return response.status < 500
+        except urllib.error.HTTPError as exc:
+            return exc.code < 500
+        except (OSError, urllib.error.URLError, TimeoutError):
+            return False
+    return await asyncio.to_thread(_probe)
+
+
+@app.get("/api/network/internet/status")
+async def internet_access_status():
+    global INTERNET_TUNNEL_CHECK_FAILURES
+    url = INTERNET_TUNNEL_URL
+    if not url:
+        return {"enabled": False, "stale": False, "url": None}
+    # A fresh tunnel can need several seconds for DNS/edge propagation. Require
+    # three consecutive failed probes before asking the user to replace it.
+    alive = await tunnel_url_alive(url)
+    INTERNET_TUNNEL_CHECK_FAILURES = 0 if alive else INTERNET_TUNNEL_CHECK_FAILURES + 1
+    stale = not alive and INTERNET_TUNNEL_CHECK_FAILURES >= 3
+    return {"enabled": not stale, "stale": stale, "url": url}
+
+
 @app.post("/api/network/internet")
 async def enable_internet_access():
     password = runtime.config.admin_password.get_secret_value()
-    global INTERNET_TUNNEL_PROCESS, INTERNET_TUNNEL_URL
+    global INTERNET_TUNNEL_PROCESS, INTERNET_TUNNEL_URL, INTERNET_TUNNEL_CHECK_FAILURES
     if password == "123456" or len(password) < 12:
         raise HTTPException(503, "为防止工站控制台暴露后被入侵，请先在 .env 中设置至少 12 位的 MONITOR_ADMIN_PASSWORD，并重启服务。")
     if not await asyncio.to_thread(network_proxy_ready):
@@ -676,7 +770,12 @@ async def enable_internet_access():
     if cloudflared_path is None:
         raise HTTPException(503, "尚未安装 Cloudflare Tunnel。请查看“互联网访问开启说明”，安装并配置后重试。")
     if INTERNET_TUNNEL_PROCESS is not None and INTERNET_TUNNEL_PROCESS.returncode is None and INTERNET_TUNNEL_URL:
-        return {"url": INTERNET_TUNNEL_URL, "enabled": True, "provider": "cloudflare-quick-tunnel", "temporary": True}
+        if await tunnel_url_alive(INTERNET_TUNNEL_URL):
+            return {"url": INTERNET_TUNNEL_URL, "enabled": True, "provider": "cloudflare-quick-tunnel", "temporary": True}
+        INTERNET_TUNNEL_PROCESS.terminate()
+        await INTERNET_TUNNEL_PROCESS.wait()
+        INTERNET_TUNNEL_PROCESS = None
+        INTERNET_TUNNEL_URL = None
     process = await asyncio.create_subprocess_exec(
         cloudflared_path, "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:8088",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
@@ -702,6 +801,7 @@ async def enable_internet_access():
         match = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", text)
         if match and match.group(0) != "https://api.trycloudflare.com":
             INTERNET_TUNNEL_URL = match.group(0)
+            INTERNET_TUNNEL_CHECK_FAILURES = 0
             runtime.tasks.append(asyncio.create_task(drain_process_output(process)))
             await runtime.db.audit("network.internet_enable", None, {"url": INTERNET_TUNNEL_URL, "provider": "cloudflare-quick-tunnel"})
             return {"url": INTERNET_TUNNEL_URL, "enabled": True, "provider": "cloudflare-quick-tunnel", "temporary": True}
@@ -723,31 +823,26 @@ async def enable_internet_access():
     )
     INTERNET_TUNNEL_PROCESS = ssh_process
     if ssh_process.stdout is None:
-        ssh_process.terminate()
-        await ssh_process.wait()
-        INTERNET_TUNNEL_PROCESS = None
+        ssh_process.terminate(); await ssh_process.wait(); INTERNET_TUNNEL_PROCESS = None
         raise HTTPException(503, "localhost.run 备用隧道启动失败：无法读取进程输出")
     ssh_lines: list[str] = []
     for _ in range(30):
         try:
             line = await asyncio.wait_for(ssh_process.stdout.readline(), timeout=1)
         except TimeoutError:
-            if ssh_process.returncode is not None:
-                break
+            if ssh_process.returncode is not None: break
             continue
-        if not line:
-            break
-        text = line.decode(errors="replace").strip()
-        ssh_lines.append(text)
+        if not line: break
+        text = line.decode(errors="replace").strip(); ssh_lines.append(text)
         match = re.search(r"https://[a-z0-9-]+\.lhr\.life", text)
         if match:
             INTERNET_TUNNEL_URL = match.group(0)
+            INTERNET_TUNNEL_CHECK_FAILURES = 0
             runtime.tasks.append(asyncio.create_task(drain_process_output(ssh_process)))
             await runtime.db.audit("network.internet_enable", None, {"url": INTERNET_TUNNEL_URL, "provider": "localhost.run"})
             return {"url": INTERNET_TUNNEL_URL, "enabled": True, "provider": "localhost.run", "temporary": True}
     if ssh_process.returncode is None:
-        ssh_process.terminate()
-        await ssh_process.wait()
+        ssh_process.terminate(); await ssh_process.wait()
     INTERNET_TUNNEL_PROCESS = None
     ssh_detail = "\n".join(ssh_lines[-6:]) or "未获得 localhost.run 临时地址"
     raise HTTPException(503, f"临时公网隧道启动失败。Cloudflare：{cloudflare_detail}\nlocalhost.run：{ssh_detail}")
@@ -888,6 +983,14 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                                 "type": "file_download", "name": posixpath.basename(path),
                                 "data": base64.b64encode(data).decode(),
                             })
+                        elif payload.get("type") == "file_write":
+                            path = str(payload.get("path") or "")
+                            data = base64.b64decode(str(payload.get("data") or ""), validate=True)
+                            if not path or len(data) > 20 * 1024 * 1024:
+                                raise ValueError("写入文件无效或超过 20 MB")
+                            async with sftp.open(path, "wb") as remote:
+                                await remote.write(data)
+                            await socket.send_json({"type": "file_written", "path": path})
                         elif payload.get("type") == "file_upload":
                             directory = str(payload.get("path") or ".")
                             name = posixpath.basename(str(payload.get("name") or ""))
@@ -1035,7 +1138,7 @@ async def retention_worker() -> None:
 
 frontend_dist = ROOT / "frontend" / "dist"
 if frontend_dist.exists():
-    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
+    app.mount("/monitor-assets", StaticFiles(directory=frontend_dist / "monitor-assets"), name="monitor-assets")
 
     @app.get("/{path:path}")
     async def frontend(path: str):
