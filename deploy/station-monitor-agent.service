@@ -1,0 +1,19 @@
+[Unit]
+Description=AIRBOT Workstation Monitor Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/log/airbot
+Environment=PYTHONPATH=/opt/station-monitor
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && exec /usr/bin/python3 -m station_monitor.agent.main --config /etc/station-monitor/agent.json'
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/airbot
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Nginx 开启说明</title><style>body{margin:0;background:#f4f6fa;color:#172033;font:14px/1.7 system-ui}.wrap{max-width:820px;margin:45px auto;padding:34px;background:#fff;border:1px solid #e2e7ef;border-radius:16px;box-shadow:0 18px 55px #20305012}h1{margin:0 0 8px}p{color:#667085}h2{margin-top:28px;font-size:17px}pre{background:#111827;color:#dbe4f0;padding:16px;border-radius:10px;overflow:auto;white-space:pre-wrap}code{font-family:ui-monospace,monospace}.tip{background:#fff8e8;border:1px solid #f1d78f;padding:12px;border-radius:8px;color:#875d10}</style><div class="wrap"><h1>开启局域网访问</h1><p>后台不能代替你输入系统 sudo 密码，因此首次配置需在本机终端执行一次。</p><div class="tip">配置文件已生成在项目的 <code>data/workstation-monitor-nginx.conf</code>。</div><h2>1. 安装 Nginx（已安装可跳过）</h2><pre>sudo apt-get update
+sudo apt-get install -y nginx</pre><h2>2. 安装项目配置并启动</h2><pre>cd /home/zhangxin/桌面/Reily/workstation-monitor
+sudo install -m 0644 data/workstation-monitor-nginx.conf /etc/nginx/conf.d/workstation-monitor.conf
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx</pre><h2>3. 验证</h2><pre>curl -I http://127.0.0.1:8088
+curl -I http://127.0.0.1:8081</pre><p>完成后回到控制中心，再点击“开启局域网访问”。控制中心使用 8088，数据采集代理使用 8081。</p></div></html>

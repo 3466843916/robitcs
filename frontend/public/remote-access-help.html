@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>远程访问开启说明</title>
+<style>body{margin:0;background:#f4f6fa;color:#172033;font:14px/1.7 system-ui}.wrap{max-width:820px;margin:45px auto;padding:34px;background:#fff;border:1px solid #e2e7ef;border-radius:16px;box-shadow:0 18px 55px #20305012}h1{margin:0 0 8px}p{color:#667085}h2{margin-top:28px;font-size:17px}pre{background:#111827;color:#dbe4f0;padding:16px;border-radius:10px;overflow:auto;white-space:pre-wrap}code{font-family:ui-monospace,monospace}.tip{background:#eef7ff;border:1px solid #bddcf6;padding:12px;border-radius:8px;color:#245b85}.warn{background:#fff8e8;border:1px solid #f1d78f;padding:12px;border-radius:8px;color:#875d10}</style></head>
+<body><main class="wrap"><h1>开启远程访问</h1><p>远程访问使用 Tailscale 建立加密私有网络，不需要把机械臂控制台直接暴露到互联网。</p>
+<div class="tip">控制中心和远程访问设备必须登录同一个 Tailscale 网络。</div>
+<h2>1. 安装 Tailscale</h2><pre>curl -fsSL https://tailscale.com/install.sh -o /tmp/install-tailscale.sh
+less /tmp/install-tailscale.sh
+sudo sh /tmp/install-tailscale.sh</pre>
+<h2>2. 登录并开机启动</h2><pre>sudo systemctl enable --now tailscaled
+sudo tailscale up</pre>
+<p>执行后终端会显示登录链接，请在浏览器完成授权。</p>
+<h2>3. 验证远程 IP</h2><pre>tailscale ip -4</pre>
+<h2>4. 回到控制中心</h2><p>重新点击“开启远程访问”。成功后会显示类似 <code>http://100.x.x.x:8088</code> 的地址。</p>
+<div class="warn">不要关闭登录验证，也不要直接将 8080/8088 端口映射到公网。远程设备同样需要安装并登录 Tailscale。</div></main></body></html>

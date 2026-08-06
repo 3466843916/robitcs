@@ -1,0 +1,4 @@
+[console_scripts]
+station-monitor-agent = station_monitor.agent.main:run
+station-monitor-server = station_monitor.server.main:run
+station-monitor-simulator = station_monitor.simulator:run

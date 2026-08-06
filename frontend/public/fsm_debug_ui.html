@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>FSM Debug UI</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+         background: #0f1117; color: #c9d1d9; padding: 24px; min-height: 100vh; }
+
+  h1 { font-size: 18px; color: #e6edf3; margin-bottom: 4px; }
+  .sub { color: #6e7681; font-size: 13px; margin-bottom: 24px; }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+
+  /* ── Card ── */
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+              color: #6e7681; margin-bottom: 16px; }
+
+  /* ── State badge ── */
+  .state-badge {
+    display: flex; align-items: center; gap: 12px;
+    background: #21262d; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+  .state-name { font-size: 22px; font-weight: 700; letter-spacing: .02em; transition: color .3s; }
+  .state-hint { font-size: 12px; color: #6e7681; margin-top: 2px; }
+
+  .s-idle            .dot { background: #6e7681; } .s-idle            .state-name { color: #8b949e; }
+  .s-initializing    .dot { background: #f0883e; } .s-initializing    .state-name { color: #f0883e; }
+  .s-ready           .dot { background: #3fb950; } .s-ready           .state-name { color: #3fb950; }
+  .s-executing       .dot { background: #58a6ff; } .s-executing       .state-name { color: #58a6ff; }
+  .s-validating      .dot { background: #a5d6ff; } .s-validating      .state-name { color: #a5d6ff; }
+  .s-post_processing .dot { background: #bc8cff; } .s-post_processing .state-name { color: #bc8cff; }
+  .s-error           .dot { background: #f85149; } .s-error           .state-name { color: #f85149; }
+
+  /* ── Flow diagram (SVG ring) ── */
+  .flow-svg { display: block; width: 100%; height: auto;
+              background: #21262d; border-radius: 8px;
+              padding: 6px 4px 8px; margin-bottom: 20px; }
+  .flow-svg .arc { fill: none; stroke: #30363d; stroke-width: 1.5; }
+  .flow-svg .trans { font: 600 9px ui-monospace, Menlo, monospace;
+                     fill: #6e7681; letter-spacing: .04em; }
+  .flow-svg .fnode rect { fill: #161b22; stroke: #30363d; stroke-width: 1.2;
+                          transition: fill .25s, stroke .25s, stroke-width .25s; }
+  .flow-svg .fnode text { font: 700 10px ui-monospace, Menlo, monospace;
+                          fill: #6e7681; transition: fill .25s; }
+  .flow-svg .fnode.active rect { stroke-width: 2; filter: drop-shadow(0 0 6px currentColor); }
+  .flow-svg .fnode.active text { fill: #e6edf3; }
+  .flow-svg .n-idle.active            rect { fill: #6e768133; stroke: #8b949e; color: #8b949e; }
+  .flow-svg .n-initializing.active    rect { fill: #f0883e33; stroke: #f0883e; color: #f0883e; }
+  .flow-svg .n-ready.active           rect { fill: #3fb95033; stroke: #3fb950; color: #3fb950; }
+  .flow-svg .n-executing.active       rect { fill: #58a6ff33; stroke: #58a6ff; color: #58a6ff; }
+  .flow-svg .n-validating.active      rect { fill: #a5d6ff33; stroke: #a5d6ff; color: #a5d6ff; }
+  .flow-svg .n-post_processing.active rect { fill: #bc8cff33; stroke: #bc8cff; color: #bc8cff; }
+  .flow-svg .abort-arc   { fill: none; stroke: #f8514988; stroke-width: 1.2;
+                           stroke-dasharray: 3 3; }
+  .flow-svg .abort-label { font: 600 10px ui-monospace, Menlo, monospace;
+                           fill: #f85149cc; letter-spacing: .04em; }
+
+  /* ── Command buttons ── */
+  .cmds { display: flex; flex-direction: column; gap: 8px; }
+  .cmd-btn {
+    width: 100%; padding: 10px 16px; border: 1px solid transparent;
+    border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+    letter-spacing: .04em; transition: opacity .15s, transform .1s;
+  }
+  .cmd-btn:active { transform: scale(.97); }
+  .btn-init     { background: #f0883e22; border-color: #f0883e88; color: #f0883e; }
+  .btn-start    { background: #3fb95022; border-color: #3fb95088; color: #3fb950; }
+  .btn-validate { background: #58a6ff22; border-color: #58a6ff88; color: #58a6ff; }
+  .btn-reset    { background: #bc8cff22; border-color: #bc8cff88; color: #bc8cff; }
+  .btn-abort    { background: #f8514922; border-color: #f8514988; color: #f85149; }
+  .btn-init:hover     { background: #f0883e44; }
+  .btn-start:hover    { background: #3fb95044; }
+  .btn-validate:hover { background: #58a6ff44; }
+  .btn-reset:hover    { background: #bc8cff44; }
+  .btn-abort:hover    { background: #f8514944; }
+
+  /* ── Right column ── */
+  .right { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── Status strip ── */
+  .status-strip { display: flex; gap: 16px; font-size: 12px; color: #6e7681;
+                  background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+                  padding: 12px 16px; align-items: center; flex-wrap: wrap; }
+  .status-strip span { display: flex; align-items: center; gap: 6px; }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: #f85149; }
+  .conn-dot.ok { background: #3fb950; }
+  .ml { margin-left: auto; }
+  .url-input {
+    background: #0f1117; border: 1px solid #30363d; border-radius: 4px;
+    color: #c9d1d9; font-size: 12px; padding: 2px 8px; width: 220px; font-family: monospace;
+  }
+  .url-input:focus { outline: none; border-color: #58a6ff; }
+
+  /* ── Scene badge in status strip ── */
+  .scene-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 4px;
+    background: #58a6ff22; border: 1px solid #58a6ff55; color: #58a6ff;
+    font-size: 11px; font-weight: 600; letter-spacing: .04em; font-family: monospace;
+  }
+
+  /* ── Device telemetry grid ── */
+  .devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .dev-card {
+    background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 14px;
+  }
+  .dev-card-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: #6e7681; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .dev-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #6e7681; }
+  .dev-status-dot.ok  { background: #3fb950; }
+  .dev-status-dot.err { background: #f85149; }
+  .dev-rows { display: flex; flex-direction: column; gap: 5px; }
+  .dev-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+  .dev-label { color: #6e7681; }
+  .dev-val { color: #e6edf3; font-family: monospace; font-size: 12px; }
+  .dev-val.null { color: #6e7681; font-style: italic; }
+  .dev-val.bool-true  { color: #3fb950; }
+  .dev-val.bool-false { color: #8b949e; }
+  .dev-val.lock-active { color: #f0883e; font-weight: 700; }
+
+  /* ── Switch bits ── */
+  .sw-summary { font-size: 12px; color: #6e7681; margin-bottom: 8px; }
+  .sw-summary b { color: #e6edf3; }
+  .sw-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 2px; margin-top: 4px; }
+  .sw-cell {
+    font-size: 9px; font-family: monospace; text-align: center;
+    border-radius: 3px; padding: 3px 1px; cursor: default;
+    border: 1px solid transparent; line-height: 1;
+    transition: opacity .1s;
+  }
+  .sw-cell.on  { background: #3fb95028; border-color: #3fb95066; color: #3fb950; }
+  .sw-cell.off { background: #ffffff08; border-color: #30363d;   color: #484f58; }
+  .sw-none { font-size: 12px; color: #6e7681; font-style: italic; }
+
+  /* ── Log ── */
+  .log-wrap { flex: 1; }
+  .log-entries { background: #21262d; border-radius: 8px; padding: 12px;
+                 font-size: 13px; font-family: monospace; max-height: 340px;
+                 overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .log-entry { display: flex; gap: 10px; align-items: baseline; }
+  .log-ts  { color: #6e7681; flex-shrink: 0; font-size: 11px; }
+  .log-tag { padding: 1px 7px; border-radius: 4px; font-size: 11px;
+             font-weight: 700; flex-shrink: 0; min-width: 60px; text-align: center; }
+  .tag-cmd   { background: #21262d; border: 1px solid #58a6ff88; color: #58a6ff; }
+  .tag-state { background: #21262d; border: 1px solid #3fb95088; color: #3fb950; }
+  .tag-scene { background: #21262d; border: 1px solid #f0883e88; color: #f0883e; }
+  .tag-err   { background: #21262d; border: 1px solid #f8514988; color: #f85149; }
+  .log-msg { color: #c9d1d9; }
+</style>
+</head>
+<body>
+
+<h1>FSM Debug UI</h1>
+<p class="sub" id="host-hint">target: —</p>
+
+<div class="layout">
+  <!-- Left column: state + commands -->
+  <div>
+    <div class="card">
+      <h2>当前状态</h2>
+      <div class="state-badge s-idle" id="state-badge">
+        <div class="dot"></div>
+        <div>
+          <div class="state-name" id="state-name">—</div>
+          <div class="state-hint" id="state-hint">connecting…</div>
+        </div>
+      </div>
+
+      <svg class="flow-svg" id="flow-diagram" viewBox="0 0 280 305" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/>
+          </marker>
+          <marker id="arr-red" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" fill="#f85149aa"/>
+          </marker>
+        </defs>
+
+        <!-- Edges (hex perimeter, clockwise) -->
+        <g stroke="#6e7681" stroke-width="1.4" fill="none">
+          <line x1="161"  y1="73"  x2="201"  y2="95"  marker-end="url(#arr)"/>
+          <line x1="222"  y1="119" x2="222"  y2="191" marker-end="url(#arr)"/>
+          <line x1="201"  y1="215" x2="161"  y2="237" marker-end="url(#arr)"/>
+          <line x1="119"  y1="237" x2="79"   y2="215" marker-end="url(#arr)"/>
+          <line x1="58"   y1="191" x2="58"   y2="119" marker-end="url(#arr)"/>
+          <line x1="79"   y1="95"  x2="119"  y2="73"  marker-end="url(#arr)"/>
+        </g>
+
+        <!-- Transition labels -->
+        <g class="trans">
+          <text x="195" y="69"  text-anchor="middle">INIT</text>
+          <text x="262" y="158" text-anchor="end">(auto)</text>
+          <text x="195" y="251" text-anchor="middle">START</text>
+          <text x="85"  y="251" text-anchor="middle">VALIDATE</text>
+          <text x="18"  y="158" text-anchor="start">RESET</text>
+          <text x="85"  y="69"  text-anchor="middle">(auto)</text>
+        </g>
+
+        <!-- ABORT shortcut (dashed inner arc to IDLE) -->
+        <path class="abort-arc" d="M 140,250 C 110,200 110,110 130,72"
+              marker-end="url(#arr-red)"/>
+        <text class="abort-label" x="140" y="160" text-anchor="middle">ABORT</text>
+        <text class="abort-label" x="140" y="174" text-anchor="middle"
+              style="font-size:8px">(任意状态)</text>
+
+        <!-- Nodes -->
+        <g class="fnode n-idle" data-state="idle">
+          <rect x="97"  y="40"  width="86" height="22" rx="11"/>
+          <text x="140" y="55"  text-anchor="middle">IDLE</text>
+        </g>
+        <g class="fnode n-initializing" data-state="initializing">
+          <rect x="179" y="93"  width="86" height="22" rx="11"/>
+          <text x="222" y="108" text-anchor="middle">INITIALIZING</text>
+        </g>
+        <g class="fnode n-ready" data-state="ready">
+          <rect x="179" y="195" width="86" height="22" rx="11"/>
+          <text x="222" y="210" text-anchor="middle">READY</text>
+        </g>
+        <g class="fnode n-executing" data-state="executing">
+          <rect x="97"  y="248" width="86" height="22" rx="11"/>
+          <text x="140" y="263" text-anchor="middle">EXECUTING</text>
+        </g>
+        <g class="fnode n-validating" data-state="validating">
+          <rect x="15"  y="195" width="86" height="22" rx="11"/>
+          <text x="58"  y="210" text-anchor="middle">VALIDATING</text>
+        </g>
+        <g class="fnode n-post_processing" data-state="post_processing">
+          <rect x="15"  y="93"  width="86" height="22" rx="11"/>
+          <text x="58"  y="108" text-anchor="middle">POST_PROCESSING</text>
+        </g>
+      </svg>
+
+      <h2 style="margin-bottom:12px">发送指令</h2>
+      <div class="cmds">
+        <button class="cmd-btn btn-init"     onclick="sendCmd('init')">INIT</button>
+        <button class="cmd-btn btn-start"    onclick="sendCmd('start')">START</button>
+        <button class="cmd-btn btn-validate" onclick="sendCmd('validate')">VALIDATE</button>
+        <button class="cmd-btn btn-reset"    onclick="sendCmd('reset')">RESET</button>
+        <button class="cmd-btn btn-abort"    onclick="sendCmd('abort')">ABORT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="right">
+    <!-- Status strip -->
+    <div class="status-strip">
+      <span><div class="conn-dot" id="conn-dot"></div> <span id="conn-label">disconnected</span></span>
+      <span>站点: <b id="station-name">—</b></span>
+      <span>场景: <span class="scene-badge" id="scene-name">—</span></span>
+      <span class="ml">
+        <input class="url-input" id="base-url" value="http://localhost:9090"
+               title="Station API base URL" onchange="onBaseUrlChange()" onblur="onBaseUrlChange()">
+      </span>
+    </div>
+
+    <!-- Device telemetry -->
+    <div class="card">
+      <h2 style="margin-bottom:14px">设备 Telemetry 广播</h2>
+      <div class="devices-grid" id="devices-grid">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="card log-wrap">
+      <h2 style="margin-bottom:12px">事件日志</h2>
+      <div class="log-entries" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────────────────────
+const pageParams = new URLSearchParams(location.search);
+const configuredTarget = pageParams.get('target');
+if (configuredTarget) document.getElementById('base-url').value = configuredTarget;
+function getBase() {
+  return (document.getElementById('base-url').value || 'http://localhost:9090').replace(/\/$/, '');
+}
+function onBaseUrlChange() {
+  document.getElementById('host-hint').textContent = 'target: ' + getBase();
+  lastState = null;
+  lastScene = null;
+}
+document.getElementById('host-hint').textContent = 'target: ' + getBase();
+
+// ── State ────────────────────────────────────────────────────────────────────
+let lastState = null;
+let lastScene = null;
+
+const HINTS = {
+  idle:            '等待 INIT 指令',
+  initializing:    '正在执行 init_actions…',
+  ready:           '初始化完成，等待 START',
+  executing:       '数据采集中，等待 VALIDATE',
+  validating:      '数据校验中，等待 RESET',
+  post_processing: '正在执行 post_actions…',
+};
+
+// ── Polling ──────────────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const r = await fetch(getBase() + '/api/status');
+    const d = await r.json();
+    setConnected(true);
+    document.getElementById('station-name').textContent = d.station_name || '—';
+    const s = d.fsm_state || 'idle';
+    if (s !== lastState) {
+      setStateUI(s);
+      addLog('state', 'STATE → ' + s.toUpperCase());
+      lastState = s;
+    }
+  } catch {
+    setConnected(false);
+  }
+}
+
+async function pollScene() {
+  try {
+    const r = await fetch(getBase() + '/api/scene');
+    if (!r.ok) return;
+    const d = await r.json();
+    const scene = d.scene || '—';
+    document.getElementById('scene-name').textContent = scene;
+    if (scene !== lastScene && lastScene !== null) {
+      addLog('scene', 'SCENE → ' + scene);
+    }
+    lastScene = scene;
+  } catch { /* best-effort */ }
+}
+
+async function pollTelemetry() {
+  try {
+    const r = await fetch(getBase() + '/api/devices/telemetry');
+    if (!r.ok) return;
+    const d = await r.json();
+    renderDevices(d);
+  } catch { /* silent — telemetry is best-effort */ }
+}
+
+// ── Device rendering ─────────────────────────────────────────────────────────
+function fmtVal(v) {
+  if (v === null || v === undefined) return ['—', 'null'];
+  if (v === true)  return ['TRUE',  'bool-true'];
+  if (v === false) return ['FALSE', 'bool-false'];
+  if (typeof v === 'number') return [v.toFixed(3), ''];
+  return [String(v), ''];
+}
+
+function makeDevCard(title, rows, ok) {
+  const dotCls = ok === null ? '' : ok ? 'ok' : 'err';
+  let html = `<div class="dev-card">
+    <div class="dev-card-title">
+      <div class="dev-status-dot ${dotCls}"></div>${title}
+    </div>
+    <div class="dev-rows">`;
+  for (const [label, val, extraCls] of rows) {
+    const [text, cls] = fmtVal(val);
+    html += `<div class="dev-row">
+      <span class="dev-label">${label}</span>
+      <span class="dev-val ${extraCls || cls}">${text}</span>
+    </div>`;
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function makeSwitchCard(sw) {
+  const ok = sw && sw.ok;
+  const dotCls = ok ? 'ok' : 'err';
+  const active = (sw && sw.active) || [];
+  const total  = (sw && sw.total)  || 0;
+
+  let gridHtml;
+  if (!sw) {
+    gridHtml = '<span class="sw-none">no data</span>';
+  } else if (total === 0) {
+    gridHtml = '<span class="sw-none">total = 0</span>';
+  } else {
+    const activeSet = new Set(active);
+    const cells = [];
+    for (let i = 0; i < total; i++) {
+      const on = activeSet.has(i);
+      cells.push(`<div class="sw-cell ${on ? 'on' : 'off'}" title="switch ${i} = ${on ? 'TRUE' : 'FALSE'}">${i}</div>`);
+    }
+    gridHtml = cells.join('');
+  }
+
+  return `<div class="dev-card" style="grid-column: 1 / -1;">
+    <div class="dev-card-title">
+      <div class="dev-status-dot ${dotCls}"></div>switch_ctrl
+    </div>
+    <div class="sw-summary">active: <b>${active.length}</b> / ${total}</div>
+    <div class="sw-grid">${gridHtml}</div>
+  </div>`;
+}
+
+function renderDevices(d) {
+  // Adapt new telemetry format: {device_id: {ok, timestamp, values}}
+  // to old hardcoded expectations
+  const door = d.door_ctrl || {};
+  const doorVals = door.values || {};
+  const six  = d.sixdof_ctrl || {};
+  const sixVals = six.values || {};
+  const revo = d.revowait_sixdof_ctrl || {};
+  const revoVals = revo.values || {};
+  const dhc  = d.door_handle_camera || {};
+  const dhcVals = dhc.values || {};
+  const sw   = d.switch_ctrl || null;
+  const swVals = sw ? (sw.values || {}) : {};
+
+  const doorOk = !!(door.ok);
+  const sixOk  = !!(six.ok);
+  const revoOk = !!(revo.ok);
+  const dhcOk  = !!(dhc.ok);
+
+  const angleDeg = doorVals.get_door_angle ?? null;
+  const lockPos  = doorVals.get_door_lock_position ?? null;
+  const torque   = doorVals.door_torque ?? null;
+
+  const angleRad    = dhcVals.get_door_handle_angle ?? null;
+  const angleDegDhc = angleRad != null ? (angleRad * 180 / Math.PI) : null;
+  const lockId      = dhcVals.lock_id ?? null;
+  const lockIdText  = lockId === null ? '—' : lockId;
+  const lockIdCls   = (lockId && lockId !== 'none') ? 'lock-active' : 'null';
+
+  let html = '';
+
+  // Only render devices present in telemetry (scene-aware)
+  if (d.door_ctrl !== undefined) {
+    html += makeDevCard('door_ctrl', [
+      ['angle (°)',   angleDeg],
+      ['lock pos',    lockPos],
+      ...(torque != null ? [['torque', torque]] : []),
+    ], doorOk);
+  }
+
+  if (d.sixdof_ctrl !== undefined) {
+    html += makeDevCard('sixdof_ctrl', [
+      ['roll',  sixVals.roll  ?? null],
+      ['pitch', sixVals.pitch ?? null],
+      ['yaw',   sixVals.yaw   ?? null],
+      ['x',     sixVals.x     ?? null],
+      ['y',     sixVals.y     ?? null],
+      ['z',     sixVals.z     ?? null],
+    ], sixOk);
+  }
+
+  if (d.revowait_sixdof_ctrl !== undefined) {
+    html += makeDevCard('revowait_sixdof_ctrl', [
+      ['roll',  revoVals.roll  ?? null],
+      ['pitch', revoVals.pitch ?? null],
+      ['yaw',   revoVals.yaw   ?? null],
+      ['x',     revoVals.x     ?? null],
+      ['y',     revoVals.y     ?? null],
+      ['z',     revoVals.z     ?? null],
+    ], revoOk);
+  }
+
+  if (d.door_handle_camera !== undefined) {
+    html += makeDevCard('door_handle_camera', [
+      ['detected',    angleRad !== null],
+      ['angle (°)',   angleDegDhc],
+      ['lock_id',     lockIdText, lockIdCls],
+    ], dhcOk);
+  }
+
+  if (d.switch_ctrl !== undefined) {
+    html += makeSwitchCard(sw);
+  }
+
+  // hinged_door instances (dynamic)
+  Object.keys(d).filter(k => k.startsWith('hinged_door_')).sort().forEach(instanceId => {
+    const snap = d[instanceId];
+    const vals = snap ? (snap.values || {}) : {};
+    const pos = vals.get_positions ?? null;
+    html += makeDevCard(instanceId, [
+      ['position (°)', pos],
+    ], !!(snap && snap.ok));
+  });
+
+  document.getElementById('devices-grid').innerHTML = html;
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setConnected(ok) {
+  document.getElementById('conn-dot').className = 'conn-dot' + (ok ? ' ok' : '');
+  document.getElementById('conn-label').textContent = ok ? 'connected' : 'disconnected';
+}
+
+function setStateUI(state) {
+  const badge = document.getElementById('state-badge');
+  badge.className = 'state-badge s-' + state;
+  document.getElementById('state-name').textContent = state.toUpperCase();
+  document.getElementById('state-hint').textContent = HINTS[state] || '';
+  highlightFlow(state);
+}
+
+function highlightFlow(state) {
+  const svg = document.getElementById('flow-diagram');
+  if (!svg) return;
+  svg.querySelectorAll('.fnode').forEach(n => {
+    n.classList.toggle('active', n.dataset.state === state);
+  });
+}
+
+// ── Commands ──────────────────────────────────────────────────────────────────
+async function sendCmd(cmd) {
+  addLog('cmd', '→ ' + cmd.toUpperCase());
+  try {
+    const r = await fetch(getBase() + '/api/fsm/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: cmd}),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      addLog('err', d.error || ('HTTP ' + r.status));
+    } else if (d.fsm_state) {
+      setStateUI(d.fsm_state);
+      lastState = d.fsm_state;
+    }
+  } catch (e) {
+    addLog('err', e.message);
+  }
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function addLog(type, msg) {
+  const el = document.getElementById('log');
+  const ts = new Date().toLocaleTimeString('zh-CN', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const MAP = {
+    cmd:   ['tag-cmd',   'CMD'],
+    err:   ['tag-err',   'ERR'],
+    state: ['tag-state', 'FSM'],
+    scene: ['tag-scene', 'SCENE'],
+  };
+  const [tagClass, tagText] = MAP[type] || ['tag-state', type.toUpperCase()];
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-ts">${ts}</span><span class="log-tag ${tagClass}">${tagText}</span><span class="log-msg">${msg}</span>`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+  while (el.children.length > 200) el.removeChild(el.firstChild);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+poll();
+pollScene();
+pollTelemetry();
+setInterval(poll,          1000);
+setInterval(pollScene,     2000);
+setInterval(pollTelemetry,   40);
+</script>
+</body>
+</html>
