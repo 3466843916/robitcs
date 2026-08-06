@@ -32,7 +32,7 @@ function pct(value?: number) { return value == null ? "—" : `${value.toFixed(1
 function bytes(value: number) { if (value < 1024) return `${value} B`; if (value < 1048576) return `${(value / 1024).toFixed(1)} KB`; return `${(value / 1048576).toFixed(1)} MB`; }
 function sourceLabel(source: string) { return ({"arm_app.log":"机械臂控制日志","collection.log":"数据采集服务日志","task-actions.log":"数据采集任务日志"} as Record<string,string>)[source] || source; }
 function matchesLogSource(source: string, group: "all"|"robot"|"collection") { return group === "all" || (group === "robot" ? source === "arm_app.log" : ["collection.log","task-actions.log"].includes(source)); }
-function acquisitionUrl(stationId:string) { return location.protocol + "//" + location.hostname + ":8081/_airbot_login?station_id=" + encodeURIComponent(stationId); }
+function acquisitionUrl(stationId:string) { return `${location.origin}/_airbot_login?station_id=${encodeURIComponent(stationId)}`; }
 function fsmUrl(station:Station) { return "/fsm_debug_ui.html?target=" + encodeURIComponent("http://" + station.ip + ":9090"); }
 function temperatureLabel(name: string) { if (name.startsWith("eef_motor_")) return "夹爪电机 " + name.slice(10); if (name.startsWith("motor_")) return "关节电机 " + name.slice(6); return name; }
 

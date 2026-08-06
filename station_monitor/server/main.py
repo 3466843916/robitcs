@@ -570,6 +570,10 @@ async def enable_nginx_access():
     listen 8088;
     server_name _;
     client_max_body_size 25m;
+    location = /_airbot_login {{
+        proxy_pass http://127.0.0.1:8080/api/acquisition/auto-login;
+        proxy_set_header Host $host;
+    }}
     location / {{
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
