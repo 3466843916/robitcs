@@ -24,24 +24,13 @@ class ProcessController:
     state_reset_command: str = "curl -s -X POST http://127.0.0.1:9090/api/fsm/command -H 'Content-Type: application/json' -d '{\"command\":\"abort\"}'"
 
     async def state(self, target: str) -> str:
-        process_pattern = self.robot_process if target == "robot" else self.collection_process if target == "collection" else None
-        unit_state = await self._unit_state(target)
-        if process_pattern is None:
-            return unit_state
-        has_process = bool(await self._pids_for_process(process_pattern))
-        if unit_state in {"starting", "stopping"}:
-            return unit_state
-        if unit_state == "failed":
-            return "failed"
-        if unit_state == "running":
-            return "running" if has_process else "failed"
-        # A matching process outside its systemd unit is an orphan and must not
-        # be presented as healthy/running.
-        return "failed" if has_process else "inactive"
-
-    async def _unit_state(self, target: str) -> str:
+        if target == "robot":
+            return "running" if await self._pids_for_process(self.robot_process) else "inactive"
+        if target == "collection":
+            return "running" if await self._pids_for_process(self.collection_process) else "inactive"
+        unit = self._unit(target)
         proc = await asyncio.create_subprocess_exec(
-            "systemctl", "is-active", self._unit(target),
+            "systemctl", "is-active", unit,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
         )
         stdout, _ = await proc.communicate()

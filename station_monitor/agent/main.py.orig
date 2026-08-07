@@ -133,12 +133,10 @@ class Agent:
             sdk_joints, sdk_temperatures = self.sdk.snapshot()
             ros_joints, ros_temperatures = self.ros.snapshot()
             joints = sdk_joints or ros_joints
-            # Merge sources so SDK arm temperatures do not hide ROS/EEF values.
-            temperatures = {**ros_temperatures, **sdk_temperatures}
+            temperatures = sdk_temperatures or ros_temperatures
             robot_state = await self.controller.state("robot")
             if robot_state == "running" and not self.sdk.arm_data_fresh():
                 robot_state = "failed"
-            collection_state = await self.controller.state("collection")
             await self.emit({
                 "type": "telemetry",
                 "payload": {
@@ -149,13 +147,8 @@ class Agent:
                     "cpu_robot": await self._process_cpu("robot"),
                     "cpu_collection": await self._process_cpu("collection"),
                     "robot_state": robot_state,
-                    "collection_state": collection_state,
+                    "collection_state": await self.controller.state("collection"),
                     "joints": joints, "temperatures": temperatures,
-                    "temperature_sources": {
-                        "arm_sdk": self.sdk.source_data_fresh("arm-sdk-motors"),
-                        "eef_sdk": self.sdk.source_data_fresh("arm-sdk-eef-motors"),
-                        "ros": bool(ros_temperatures),
-                    },
                 },
             })
             await asyncio.sleep(1)

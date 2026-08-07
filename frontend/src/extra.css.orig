@@ -91,8 +91,5 @@ main>header,main>.panel,main>.welcome-dashboard,main>.metrics,main>.section-titl
 html,body,#root{max-width:100%;overflow-x:hidden}main>header,main>.panel,main>.welcome-dashboard,main>.metrics,main>.section-title,main>.station-grid,main>.station-pagination,main>.analytics-page,main>.report-page{width:100%;max-width:none}.fsm-monitor{width:100%;max-width:none}.welcome-station-grid{grid-template-columns:repeat(5,minmax(0,1fr))}@media(max-width:1350px){.welcome-station-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:1100px){.welcome-station-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:850px){.welcome-station-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.welcome-station-grid{grid-template-columns:1fr}}
 .internet.needs-refresh{border-color:#e59b31;background:#fff8e8;color:#a35d08}.internet-warning{width:16px;height:16px;border-radius:50%;background:#e59b31;color:#fff;font-size:11px;line-height:16px}.internet.needs-refresh:hover{background:#fff0d4}
 
-.card-actions .stop-all{color:#d74742;border-color:#efc6c4;background:#fff7f7;font-weight:600;white-space:nowrap}
 /* Keep main content inside the viewport beside the fixed sidebar */
 main{width:calc(100% - 228px);min-width:0}main>*{min-width:0}@media(max-width:1250px){main{width:calc(100% - 210px)}}@media(max-width:850px){main{width:100%;margin-left:0}}
-
-.log-line p{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}

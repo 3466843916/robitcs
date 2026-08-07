@@ -1,109 +1,425 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Workstation Monitor 运行与维护文档</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>AIRBOT 工站监控平台 · 运行与维护手册</title>
 <style>
-:root{--ink:#18212f;--muted:#647084;--line:#dce2ea;--page:#eef2f6;--nav:#17202d;--blue:#1769e0;--soft:#eaf2ff;--green:#087f5b;--green2:#e8f7f1;--amber:#9a5b00;--amber2:#fff4d6;--red:#b42318;--red2:#ffefed}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.7 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}a{color:var(--blue)}code,pre{font-family:Consolas,monospace}.layout{display:grid;grid-template-columns:274px minmax(0,1fr);min-height:100vh}aside{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 20px;background:var(--nav);color:#fff}.brand{display:flex;align-items:center;gap:12px;padding:0 8px 20px;border-bottom:1px solid #354154}.mark{display:grid;width:40px;height:40px;place-items:center;border:1px solid #53647b;border-radius:8px;color:#8bb8ff;font-weight:800}.brand strong,.brand span{display:block}.brand span{color:#aeb9c9;font-size:12px}nav{padding-top:16px}nav a{display:block;padding:7px 10px;border-left:2px solid transparent;color:#aeb9c9;text-decoration:none;font-size:13px}nav a:hover,nav a.active{border-color:#69a3ff;color:#fff;background:#222e3e}.side-note{margin:20px 8px;color:#aeb9c9;font-size:12px}main{width:min(1100px,calc(100% - 48px));margin:auto;padding:40px 0 72px}.hero{padding:40px;border-radius:8px;background:#243246;color:#fff}.hero small{color:#9fc3fa;font-weight:700}.hero h1{margin:7px 0 12px;font-size:38px;line-height:1.2}.hero p{max-width:750px;margin:0;color:#d7e0ec}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{padding:4px 10px;border:1px solid #52627a;border-radius:99px;font-size:12px}section{padding:32px 4px 4px;border-bottom:1px solid var(--line)}section:last-of-type{border:0}h2{margin:0 0 16px;font-size:25px}h3{margin:24px 0 8px;font-size:18px}p,ul,ol{margin:9px 0}li+li{margin-top:5px}.lead{color:var(--muted)}.ports{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.ports div{padding:13px;border:1px solid var(--line);border-radius:6px;background:#fff}.ports b{display:block;color:var(--blue);font-size:20px}.ports span{color:var(--muted);font-size:12px}.note{margin:14px 0;padding:12px 15px;border-left:4px solid var(--blue);background:var(--soft)}.note strong{display:block}.note.ok{border-color:var(--green);background:var(--green2)}.note.warn{border-color:#e9a100;background:var(--amber2)}.note.danger{border-color:var(--red);background:var(--red2)}:not(pre)>code{padding:2px 5px;border-radius:4px;background:#e8edf3;color:#244262}pre{position:relative;margin:10px 0 17px;padding:17px 55px 17px 17px;overflow:auto;border-radius:6px;background:#111827;color:#e5edf8;line-height:1.55}.copy{position:absolute;right:9px;top:9px;width:38px;height:29px;border:1px solid #465368;border-radius:5px;background:#263143;color:#d9e3ef;cursor:pointer;font-size:11px}table{width:100%;margin:12px 0 18px;border-collapse:collapse;background:#fff}th,td{padding:9px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f2f5f8;color:#435066;font-size:13px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:16px;border:1px solid var(--line);border-radius:8px;background:#fff}.card h3{margin-top:0}.checks{padding:0;list-style:none}.checks li:before{content:"✓";margin-right:8px;color:var(--green);font-weight:800}footer{padding:28px 4px 0;color:var(--muted);font-size:13px}@media(max-width:900px){.layout{display:block}aside{position:static;height:auto;padding:17px}nav{display:flex;gap:4px;overflow:auto}nav a{flex:none;border:1px solid #39485c;border-radius:4px;white-space:nowrap}.side-note{display:none}main{width:min(100% - 28px,760px);padding-top:20px}.hero{padding:27px 21px}.hero h1{font-size:29px}.grid{grid-template-columns:1fr}.ports{grid-template-columns:1fr 1fr}}@media(max-width:520px){body{font-size:14px}main{width:calc(100% - 20px)}.hero h1{font-size:25px}h2{font-size:21px}.table-wrap{overflow:auto}th,td{padding:8px}}@media print{body{background:#fff}.layout{display:block}aside,.copy{display:none}main{width:100%;padding:0}.hero{color:#000;background:#fff;border:1px solid #bbb}.hero p,.hero small{color:#333}section{break-inside:avoid}pre{white-space:pre-wrap}}
+:root{--bg:#08101d;--panel:#0e1929;--panel2:#122238;--line:#263a55;--text:#e8f0fa;--muted:#9eafc4;--cyan:#45d4c5;--blue:#68a9ff;--amber:#f4bd62;--red:#ff7785;--green:#62d79d;--code:#07111e;--shadow:0 24px 70px rgba(0,0,0,.28)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:radial-gradient(circle at 82% 4%,#173455 0,transparent 28%),radial-gradient(circle at 10% 32%,#102f3b 0,transparent 23%),var(--bg);color:var(--text);font:15px/1.72 Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}code,kbd{font-family:"SFMono-Regular",Consolas,monospace}code{color:#a9d6ff}kbd{padding:2px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:#14243a}
+.layout{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1500px;margin:auto;min-height:100vh}
+aside{position:sticky;top:0;height:100vh;padding:28px 22px;border-right:1px solid var(--line);background:rgba(7,15,27,.9);backdrop-filter:blur(15px);overflow:auto}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:28px}.logo{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#06101a;font-weight:900;box-shadow:0 10px 28px rgba(69,212,197,.2)}.brand strong{display:block;font-size:15px}.brand span{display:block;color:var(--muted);font-size:12px}
+nav{display:grid;gap:4px}nav a{padding:8px 10px;border-radius:8px;color:var(--muted);font-size:13px}nav a:hover{color:var(--text);background:var(--panel2);text-decoration:none}.aside-note{margin-top:25px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+main{width:100%;max-width:1120px;padding:50px 58px 90px}
+.hero{padding:52px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(135deg,rgba(18,36,59,.94),rgba(10,23,39,.82));box-shadow:var(--shadow);position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:280px;height:280px;border:1px solid rgba(69,212,197,.2);border-radius:50%;right:-100px;top:-130px;box-shadow:0 0 0 38px rgba(104,169,255,.035),0 0 0 76px rgba(104,169,255,.025)}.eyebrow{color:var(--cyan);font-weight:800;letter-spacing:.18em;text-transform:uppercase;font-size:12px}.hero h1{font-size:clamp(34px,5vw,62px);line-height:1.05;letter-spacing:-.04em;margin:18px 0;max-width:760px}.hero p{font-size:17px;color:#bccbdb;max-width:760px}.badges{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}.badge{padding:6px 11px;border:1px solid #34506f;border-radius:99px;color:#cbd8e6;font-size:12px;background:rgba(8,16,29,.48)}
+section{margin-top:72px}h2{font-size:28px;line-height:1.2;margin:0 0 20px;padding-bottom:13px;border-bottom:1px solid var(--line)}h2 span{color:var(--cyan);margin-right:8px}h3{font-size:19px;margin:30px 0 12px}h4{font-size:15px;color:#d7e7fa;margin:22px 0 8px}p{margin:10px 0;color:#c0ccda}.lead{font-size:17px;color:#d7e2ee}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0}.card{padding:20px;border:1px solid var(--line);border-radius:14px;background:rgba(14,25,41,.82)}.card h3{font-size:16px;margin:0 0 6px;color:#f2f7fc}.card p{font-size:13px;margin:0;color:var(--muted)}.card b{display:block;font-size:26px;color:var(--cyan);margin-bottom:5px}
+.flow{padding:22px;border-radius:14px;border:1px solid var(--line);background:var(--panel);overflow:auto;color:#cae3ef;white-space:pre;font:14px/1.7 "SFMono-Regular",Consolas,monospace}
+pre{position:relative;margin:14px 0 22px;padding:19px 22px;border:1px solid #20334d;border-radius:13px;background:var(--code);overflow:auto;box-shadow:inset 3px 0 var(--cyan)}pre code{color:#d2dfeb;white-space:pre;font-size:13px;line-height:1.62}
+table{width:100%;border-collapse:collapse;margin:16px 0 24px;background:rgba(14,25,41,.72);font-size:13px}th,td{padding:11px 13px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#16283e;color:#f0f5fb}td{color:#bbc9d8}.table-wrap{overflow:auto}
+.note{margin:18px 0;padding:15px 18px;border:1px solid #31516a;border-left:4px solid var(--blue);border-radius:9px;background:rgba(24,49,73,.6);color:#cfe0f2}.note strong{display:block;color:#f3f8ff}.note.warn{border-left-color:var(--amber);background:rgba(83,58,22,.26)}.note.danger{border-left-color:var(--red);background:rgba(91,30,42,.25)}.note.ok{border-left-color:var(--green);background:rgba(24,76,58,.25)}
+ul,ol{padding-left:22px;color:#c2cedb}li{margin:6px 0}.steps{counter-reset:step;list-style:none;padding:0}.steps>li{counter-increment:step;position:relative;padding:0 0 25px 49px;margin:0}.steps>li:before{content:counter(step);position:absolute;left:0;top:0;width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:var(--cyan);color:#07111c;font-weight:900}.steps>li:not(:last-child):after{content:"";position:absolute;left:15px;top:34px;bottom:3px;width:1px;background:var(--line)}.steps h3{margin:2px 0 7px}
+.checks{list-style:none;padding:0;columns:2;gap:30px}.checks li{break-inside:avoid}.checks li:before{content:"✓";color:var(--green);font-weight:900;margin-right:9px}
+footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+@media(max-width:930px){.layout{display:block}aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}nav{grid-template-columns:repeat(2,1fr)}main{padding:30px 20px 60px}.hero{padding:34px 26px}.grid{grid-template-columns:1fr}.checks{columns:1}}
+@media print{body{background:#fff;color:#111;font-size:11px}.layout{display:block;max-width:none}aside{display:none}main{max-width:none;padding:0}.hero,.card,table,.note{background:#fff;color:#111;box-shadow:none}p,li,td,.lead{color:#222}h2{break-after:avoid}section{margin-top:34px}pre{white-space:pre-wrap;background:#f5f5f5;color:#111}.hero{padding:25px}a{color:#111}}
 </style>
 </head>
-<body><div class="layout">
-<aside><div class="brand"><div class="mark">WM</div><div><strong>Workstation Monitor</strong><span>运行与维护手册</span></div></div><nav>
-<a href="#overview">1. 系统概览</a><a href="#start">2. 安装与启动</a><a href="#config">3. 配置与登录</a><a href="#service">4. 后台服务</a><a href="#network">5. 网络与 Nginx</a><a href="#stations">6. 工站接入</a><a href="#acquisition">7. 数据采集</a><a href="#ssh">8. SSH 与文件</a><a href="#logs">9. 日志与告警</a><a href="#fsm">10. 状态机</a><a href="#verify">11. 验证与备份</a><a href="#fault">12. 故障排查</a>
-</nav><p class="side-note">按当前仓库实现编写。密码、密钥和公网地址以实际部署配置为准。</p></aside>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand"><div class="logo">WM</div><div><strong>AIRBOT Workstation Monitor</strong><span>运行与维护手册</span></div></div>
+  <nav>
+    <a href="#overview">01 · 系统概览</a>
+    <a href="#prepare">02 · 环境准备</a>
+    <a href="#quickstart">03 · 首次启动</a>
+    <a href="#modes">04 · 运行模式</a>
+    <a href="#config">05 · 配置说明</a>
+    <a href="#service">06 · 后台服务</a>
+    <a href="#stations">07 · 工站接入</a>
+    <a href="#operations">08 · 日常操作</a>
+    <a href="#data">09 · 数据与接口</a>
+    <a href="#network">10 · 网络访问</a>
+    <a href="#security">11 · 安全加固</a>
+    <a href="#verify">12 · 验收与备份</a>
+    <a href="#troubleshooting">13 · 故障排查</a>
+  </nav>
+  <div class="aside-note">按 2026-08-07 当前仓库源码重新生成。实际密码、IP、命令和证书以部署环境为准。</div>
+</aside>
 <main>
-<header class="hero"><small>部署 · 启动 · 接入 · 运维</small><h1>Workstation Monitor<br>运行与维护文档</h1><p>五工站机械臂监控、数据采集、状态机、日志告警、SSH 终端及文件管理的一体化操作手册。</p><div class="tags"><span>Python 3.11+</span><span>FastAPI</span><span>React 19 + Vite</span><span>Ubuntu 22.04 工站</span><span>2026-08-06</span></div></header>
+<header class="hero">
+  <div class="eyebrow">Deploy · Operate · Observe</div>
+  <h1>AIRBOT 工站监控平台<br>运行与维护手册</h1>
+  <p>覆盖控制中心安装、前端构建、模拟演示、工站 Agent 接入、生产运行、日志告警、数据采集、远程访问、验收备份与故障排查。</p>
+  <div class="badges"><span class="badge">Python 3.11+</span><span class="badge">FastAPI</span><span class="badge">React 19 + Vite 5</span><span class="badge">SQLite + NDJSON</span><span class="badge">WebSocket</span><span class="badge">Ubuntu 22.04 Agent</span></div>
+</header>
 
-<section id="overview"><h2>1. 系统概览</h2><p class="lead">控制中心由 FastAPI 后端、React 静态页面、SQLite 数据目录和工站 Agent 组成。生产模式下，后端同时提供页面、API 与 WebSocket。</p><div class="ports"><div><b>8080</b><span>页面 / API / WebSocket</span></div><div><b>8088</b><span>Nginx 局域网入口</span></div><div><b>8081</b><span>数据采集代理</span></div><div><b>22 / 9090</b><span>工站 SSH / FSM</span></div></div><ul><li>正式入口：<code>http://127.0.0.1:8080</code></li><li>开发入口：<code>http://127.0.0.1:5173</code>，只用于 Vite 调试</li><li>数据、数据库和生成的 Nginx 配置默认位于 <code>data/</code></li></ul></section>
+<section id="overview">
+<h2><span>01</span>系统概览</h2>
+<p class="lead">控制中心同时提供管理页面、REST API 和实时 WebSocket；工站 Agent 负责采集状态、跟踪日志并执行白名单控制命令。</p>
+<div class="flow">浏览器 ── HTTP / WebSocket ──► FastAPI 控制中心 ──► SQLite / NDJSON
+                                        │
+                                        ├── WebSocket ──► 工站 Agent ──► systemd / ROS / SDK
+                                        ├── SSH / SFTP ─► 工站接入、终端、文件
+                                        └── HTTP 代理 ──► 外部数据采集系统</div>
+<div class="grid">
+  <div class="card"><b>8080</b><h3>控制中心</h3><p>页面、API、浏览器与 Agent WebSocket。</p></div>
+  <div class="card"><b>5173</b><h3>前端开发</h3><p>Vite 开发服务，仅开发时使用。</p></div>
+  <div class="card"><b>8088</b><h3>局域网入口</h3><p>可选 Nginx 反向代理管理界面。</p></div>
+  <div class="card"><b>8081</b><h3>采集代理</h3><p>可选 Nginx 外部采集系统代理。</p></div>
+</div>
+<h3>组件职责</h3>
+<div class="table-wrap"><table><thead><tr><th>组件</th><th>目录/入口</th><th>职责</th></tr></thead><tbody>
+<tr><td>控制中心</td><td><code>station_monitor/server</code></td><td>认证、工站、命令、遥测、告警、日志、SSH、网络与采集代理。</td></tr>
+<tr><td>管理界面</td><td><code>frontend/src</code></td><td>工站仪表盘、控制、日志告警、终端及网络访问界面。</td></tr>
+<tr><td>工站 Agent</td><td><code>station_monitor/agent</code></td><td>心跳、CPU、ROS/SDK 数据、日志跟踪和受限进程控制。</td></tr>
+<tr><td>模拟器</td><td><code>station_monitor/simulator.py</code></td><td>创建 1～5 个虚拟工站，生成遥测、日志并响应命令。</td></tr>
+<tr><td>持久化</td><td><code>data/</code></td><td>SQLite 数据库、NDJSON 日志、known_hosts 和生成配置。</td></tr>
+</tbody></table></div>
+</section>
 
-<section id="start"><h2>2. 首次安装与快速启动</h2><p>在项目根目录执行，要求 Python 3.11 或更高版本。</p><h3>安装后端</h3><pre><code>python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -e '.[test]'
-cp .env.example .env</code></pre><h3>构建前端</h3><pre><code>cd frontend
-npm install
+<section id="prepare">
+<h2><span>02</span>环境准备</h2>
+<ul>
+<li>Python 3.11 或更高版本。</li>
+<li>Node.js 18+ 和 npm；仅前端构建/开发需要。</li>
+<li>控制中心推荐 Linux；自动部署目标工站必须是 Ubuntu 22.04。</li>
+<li>真实工站场景：控制中心能访问工站 SSH，工站能访问 Agent 回连地址。</li>
+<li>可选：Nginx、Tailscale、cloudflared、有效 TLS/mTLS 证书。</li>
+</ul>
+<h3>安装 Python 环境</h3>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -e ".[test]"</code></pre>
+<h3>构建前端</h3>
+<pre><code>cd frontend
+npm ci
 npm run build
-cd ..</code></pre><h3>启动</h3><pre><code>.venv/bin/station-monitor-server</code></pre><p>浏览器访问 <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>。默认账号 <code>admin</code>，默认密码 <code>040712</code>。</p><div class="note danger"><strong>首次登录后立即修改密码</strong>默认密码仅用于初始化；开启互联网访问前，系统会检查管理员密码强度。</div></section>
+cd ..</code></pre>
+<div class="note"><strong>为何必须构建？</strong>生产入口由 FastAPI 托管 <code>frontend/dist</code>。目录不存在时后端 API 可以运行，但管理界面不会被提供。前端代码变更后也要重新构建。</div>
+</section>
 
-<section id="config"><h2>3. 配置与 API 登录</h2><p>配置从项目根目录 <code>.env</code> 读取，不要提交真实密码、SSH 凭据或共享密钥。</p><div class="table-wrap"><table><thead><tr><th>变量</th><th>用途</th><th>建议</th></tr></thead><tbody>
-<tr><td><code>MONITOR_HOST / PORT</code></td><td>后端监听</td><td>配合 Nginx 时保持 <code>127.0.0.1:8080</code></td></tr>
-<tr><td><code>MONITOR_ADMIN_USERNAME / PASSWORD</code></td><td>控制中心登录</td><td>生产使用强密码</td></tr>
-<tr><td><code>MONITOR_AGENT_SHARED_SECRET</code></td><td>Agent 认证</td><td>用 <code>openssl rand -hex 32</code> 生成，各端一致</td></tr>
-<tr><td><code>MONITOR_PUBLIC_AGENT_URL</code></td><td>Agent 回连</td><td>工站可访问的 ws 或 wss 地址</td></tr>
-<tr><td><code>MONITOR_ACQUISITION_BASE_URL</code></td><td>采集上游</td><td>默认 <code>http://192.168.215.158</code></td></tr>
-<tr><td>机械臂、数采、复位、归零命令</td><td>工站控制</td><td>按实际软件路径和用户权限修改</td></tr>
-<tr><td><code>MONITOR_RETENTION_DAYS</code></td><td>日志保留</td><td>默认 30 天</td></tr></tbody></table></div>
-<p>除 <code>/api/auth/login</code> 外，所有 <code>/api/*</code> 请求都需要 HttpOnly Cookie：</p><pre><code>curl -sS -c /tmp/wm.cookie -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"040712"}' \
-  http://127.0.0.1:8080/api/auth/login
+<section id="quickstart">
+<h2><span>03</span>首次启动</h2>
+<ol class="steps">
+<li><h3>生成本地配置</h3><pre><code>cp .env.example .env</code></pre><p>编辑 <code>.env</code>。至少设置管理员强密码和 Agent 长随机共享密钥。</p></li>
+<li><h3>启动控制中心</h3><pre><code>.venv/bin/station-monitor-server</code></pre><p>默认监听 <code>127.0.0.1:8080</code>。</p></li>
+<li><h3>执行健康检查</h3><pre><code>curl -sS http://127.0.0.1:8080/api/health
+ss -ltnp | grep ':8080'</code></pre></li>
+<li><h3>打开管理页面</h3><p>访问 <a href="http://127.0.0.1:8080">http://127.0.0.1:8080</a>。API 文档位于 <a href="http://127.0.0.1:8080/docs">/docs</a>。</p></li>
+<li><h3>可选：启动五工站模拟器</h3><pre><code>.venv/bin/station-monitor-simulator \
+  --server http://127.0.0.1:8080 \
+  --count 5 \
+  --secret change-me-before-production</code></pre><p><code>--secret</code> 必须与服务端 <code>MONITOR_AGENT_SHARED_SECRET</code> 一致。</p></li>
+</ol>
+<div class="note danger"><strong>默认凭据只用于初始化</strong><code>.env.example</code> 中的账号、密码、共享密钥、采集凭据和 IP 都是示例或现场默认值。投入使用前必须逐项核对并更换。</div>
+</section>
 
-curl -sS -b /tmp/wm.cookie http://127.0.0.1:8080/api/health
-curl -sS -b /tmp/wm.cookie http://127.0.0.1:8080/api/stations</code></pre></section>
+<section id="modes">
+<h2><span>04</span>运行模式</h2>
+<div class="grid">
+<div class="card"><h3>生产静态模式</h3><p>先执行 <code>npm run build</code>，再运行后端；统一通过 8080 或 Nginx 8088 访问。</p></div>
+<div class="card"><h3>前端开发模式</h3><p>后端运行在 8080，Vite 运行在 5173，并自动代理 <code>/api</code> 与 <code>/ws</code>。</p></div>
+<div class="card"><h3>模拟演示模式</h3><p>控制中心加模拟器，不需要机械臂硬件，适合页面联调和演示。</p></div>
+<div class="card"><h3>真实工站模式</h3><p>通过 SSH 部署 Agent，验证 WebSocket 回连、SDK、ROS、systemd 和日志权限。</p></div>
+</div>
+<h3>前端开发命令</h3>
+<pre><code># 终端 1
+.venv/bin/station-monitor-server
 
-<section id="service"><h2>4. 后台运行与开机启动</h2><p>推荐创建 systemd 服务，按实际用户和路径修改：</p><pre><code>[Unit]
-Description=Workstation Monitor
+# 终端 2
+cd frontend
+npm run dev
+
+# 浏览器
+http://127.0.0.1:5173</code></pre>
+<h3>模拟器参数</h3>
+<table><thead><tr><th>参数</th><th>默认值</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>--server</code></td><td><code>http://127.0.0.1:8080</code></td><td>控制中心 HTTP 地址，模拟器会转换为 Agent WebSocket。</td></tr>
+<tr><td><code>--count</code></td><td><code>5</code></td><td>虚拟工站数量，可选 1～5。</td></tr>
+<tr><td><code>--secret</code></td><td>初始化示例值</td><td>必须匹配服务端共享密钥。</td></tr>
+</tbody></table>
+</section>
+
+<section id="config">
+<h2><span>05</span>配置说明</h2>
+<p>服务端使用 <code>pydantic-settings</code> 加载项目根目录 <code>.env</code>，变量统一以 <code>MONITOR_</code> 开头。修改后重启服务。</p>
+<h3>基础与安全</h3>
+<div class="table-wrap"><table><thead><tr><th>变量</th><th>代码默认值</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>MONITOR_HOST</code></td><td><code>127.0.0.1</code></td><td>监听地址。经 Nginx 暴露时通常保持环回地址。</td></tr>
+<tr><td><code>MONITOR_PORT</code></td><td><code>8080</code></td><td>控制中心端口。</td></tr>
+<tr><td><code>MONITOR_DATA_DIR</code></td><td><code>data</code></td><td>数据库、日志和生成配置目录。</td></tr>
+<tr><td><code>MONITOR_RETENTION_DAYS</code></td><td><code>30</code></td><td>日志、审计和已恢复告警保留时间。</td></tr>
+<tr><td><code>MONITOR_ADMIN_USERNAME</code></td><td><code>admin</code></td><td>管理页面账号。</td></tr>
+<tr><td><code>MONITOR_ADMIN_PASSWORD</code></td><td>初始化值</td><td>必须修改；临时公网访问要求至少 12 位。</td></tr>
+<tr><td><code>MONITOR_AGENT_SHARED_SECRET</code></td><td>初始化值</td><td>Agent 注册密钥，服务端与 Agent 必须一致。</td></tr>
+<tr><td><code>MONITOR_ALLOW_INSECURE_AGENTS</code></td><td><code>true</code></td><td>生产环境应设为 <code>false</code> 并配置 mTLS。</td></tr>
+<tr><td><code>MONITOR_PUBLIC_AGENT_URL</code></td><td><code>ws://127.0.0.1:8080/ws/agent</code></td><td>自动部署时写入 Agent 的回连地址。</td></tr>
+<tr><td><code>MONITOR_HEARTBEAT_TIMEOUT_SECONDS</code></td><td><code>10</code></td><td>Agent 心跳超时阈值。</td></tr>
+</tbody></table></div>
+<h3>告警、采集与控制</h3>
+<table><thead><tr><th>变量组</th><th>用途</th></tr></thead><tbody>
+<tr><td><code>MONITOR_CPU_WARNING_PERCENT</code> / <code>CRITICAL</code></td><td>CPU 告警阈值，默认 85% / 95%。</td></tr>
+<tr><td><code>MONITOR_TEMPERATURE_WARNING_C</code> / <code>CRITICAL_C</code></td><td>可选温度告警阈值。</td></tr>
+<tr><td><code>MONITOR_SMTP_*</code> / <code>MONITOR_ALERT_EMAIL</code></td><td>可选 SMTP 邮件告警。</td></tr>
+<tr><td><code>MONITOR_ACQUISITION_*</code></td><td>外部采集系统地址和自动登录凭据。</td></tr>
+<tr><td><code>MONITOR_*_UNIT</code></td><td>机械臂、采集、回零和状态复位 systemd 单元。</td></tr>
+<tr><td><code>MONITOR_*_COMMAND</code></td><td>SDK、任务、回零、状态复位和采集命令。</td></tr>
+<tr><td><code>MONITOR_LOG_PATHS</code></td><td>Agent 跟踪的日志文件路径。</td></tr>
+<tr><td><code>MONITOR_COMMAND_WORKDIR</code></td><td>工站控制命令工作目录，默认 <code>/var/log/airbot</code>。</td></tr>
+</tbody></table>
+<div class="note warn"><strong>配置名称以源码为准</strong>新增或完整配置项可查看 <code>station_monitor/server/config.py</code>、<code>station_monitor/agent/config.py</code> 和 <code>.env.example</code>。</div>
+</section>
+
+<section id="service">
+<h2><span>06</span>后台运行与开机启动</h2>
+<p>仓库提供工站 Agent 的 systemd 文件；控制中心可按部署路径自建服务。下面是控制中心示例，请替换用户和绝对路径。</p>
+<pre><code>[Unit]
+Description=AIRBOT Workstation Monitor
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=zhangxin
-WorkingDirectory=/home/zhangxin/桌面/Reily/workstation-monitor
-EnvironmentFile=/home/zhangxin/桌面/Reily/workstation-monitor/.env
-ExecStart=/home/zhangxin/桌面/Reily/workstation-monitor/.venv/bin/station-monitor-server
-Restart=always
+User=&lt;运行用户&gt;
+WorkingDirectory=&lt;项目绝对路径&gt;
+ExecStart=&lt;项目绝对路径&gt;/.venv/bin/station-monitor-server
+Restart=on-failure
 RestartSec=3
 
 [Install]
-WantedBy=multi-user.target</code></pre><p>保存为 <code>workstation-monitor.service</code> 后：</p><pre><code>sudo install -m 0644 workstation-monitor.service /etc/systemd/system/workstation-monitor.service
+WantedBy=multi-user.target</code></pre>
+<pre><code>sudo install -m 0644 workstation-monitor.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now workstation-monitor.service
 sudo systemctl status workstation-monitor.service
-journalctl -u workstation-monitor.service -f</code></pre><div class="note warn"><strong>不要误判当前状态</strong>进程正在运行不代表已经安装同名 systemd unit；必须先安装服务文件。</div></section>
-
-<section id="network"><h2>5. 网络、Nginx 与远程访问</h2><p>页面会查询本机 IPv4 并生成 <code>data/workstation-monitor-nginx.conf</code>。8088 转发控制中心，8081 转发数据采集。</p><pre><code>ip -4 addr show
-ss -ltnp | grep -E ':(8080|8081|8088)\b'
-
-sudo cp data/workstation-monitor-nginx.conf /etc/nginx/conf.d/workstation-monitor.conf
-sudo nginx -t
-sudo systemctl reload nginx</code></pre><div class="note warn"><strong>提示 sudo 需要密码</strong>网页无法替你输入 sudo 密码。点击“开启说明”，或在服务器终端手动执行上述命令。</div><div class="grid"><div class="card"><h3>局域网</h3><p><code>http://&lt;本机IP&gt;:8088</code>，防火墙需允许 TCP 8088。</p></div><div class="card"><h3>Tailscale</h3><p>安装并登录后使用“开启远程访问”，接口为 <code>POST /api/network/remote</code>。</p></div><div class="card"><h3>Cloudflare</h3><p>安装 <code>cloudflared</code> 后使用“开启互联网访问”，并先设置强密码。</p></div><div class="card"><h3>跨网络采集</h3><p>换网失效通常是服务器无法访问上游 192.168.215.158，而非页面故障。</p></div></div><pre><code>curl -I http://192.168.215.158/acquisition/project
-ip route get 192.168.215.158</code></pre></section>
-
-<section id="stations"><h2>6. 工站接入与自动适配</h2><ol><li>工站推荐 Ubuntu 22.04，控制中心必须能访问 TCP 22。</li><li>填写工站名称、IP、SSH 端口和真实 Linux 凭据完成首次部署；密码不会保存。</li><li>Agent 安装到 <code>/opt/station-monitor</code>，服务为 <code>station-monitor-agent.service</code>。</li><li>上线后逐项验证机械臂启停、数采启停、状态机复位、机械臂归零和任务控制。</li></ol><div class="note ok"><strong>自动重连与新增工站</strong>Agent 使用 <code>Restart=always</code> 和 <code>RestartSec=3</code>，离线重上线后自动回连。新增工站自动获得通用控制，已知 IP 会匹配任务配置。</div><pre><code>sudo systemctl status station-monitor-agent.service
-sudo journalctl -u station-monitor-agent.service -n 100 --no-pager
-sudo systemctl restart station-monitor-agent.service</code></pre><p>控制失败时查看悬浮弹窗中的退出码和 stderr，再检查对应日志。</p></section>
-
-<section id="acquisition"><h2>7. 数据采集页面</h2><p>点击“数据采集”后，后端自动登录采集系统并代理到对应项目，浏览器无需保存采集密码。</p><div class="table-wrap"><table><thead><tr><th>工站</th><th>工站 IP</th><th>project_id</th></tr></thead><tbody>
-<tr><td>抽屉工站</td><td>192.168.31.13</td><td>184</td></tr><tr><td>下开门工站</td><td>192.168.31.41</td><td>185</td></tr><tr><td>右开门工站</td><td>192.168.31.178</td><td>186</td></tr><tr><td>上开门工站</td><td>192.168.31.34</td><td>187</td></tr><tr><td>左开门工站</td><td>192.168.31.100</td><td>182</td></tr></tbody></table></div><p>目标路径统一为 <code>/acquisition/sample?project_id=&lt;编号&gt;</code>。新增工站可在添加或编辑窗口填写“数据采集项目 ID”；填写值优先于 IP 映射，现有五台工站未填写时仍自动使用上表映射。</p><div class="note warn"><strong>页面空白或换网失效</strong>在控制中心服务器执行 <code>curl -I http://192.168.215.158/acquisition/project</code>。若不通，恢复现场路由、VPN 或网络；Nginx 无法代理自身不可达的上游。</div></section>
-
-<section id="ssh"><h2>8. SSH、终端与文件管理</h2><p>支持交互终端、目录浏览、SFTP 上传/下载、常见文件预览和网络恢复后的自动重连。</p><div class="note danger"><strong>不要混淆账号</strong>SSH 使用目标工站 Linux 用户名和密码，不是控制中心 <code>admin / 040712</code>。</div><pre><code>ping -c 3 &lt;工站IP&gt;
-nc -vz &lt;工站IP&gt; 22
-ssh -vvv &lt;用户名&gt;@&lt;工站IP&gt;
-# 工站本机
-sudo systemctl status ssh</code></pre><ul><li>单文件上传、下载和预览限制为 20 MB。</li><li>目录访问受 SSH 用户权限限制。</li><li>文本、图片、PDF 可直接预览；二进制文件建议下载。</li></ul></section>
-
-<section id="logs"><h2>9. 日志与告警</h2><p>日志默认只显示当天记录并按时间倒序排列；机械臂、数据采集和任务动作分开筛选，支持下载、清空和批量删除。</p><table><thead><tr><th>来源</th><th>文件</th><th>用途</th></tr></thead><tbody><tr><td>机械臂</td><td><code>arm_app.log</code></td><td>启动、驱动和控制异常</td></tr><tr><td>数据采集</td><td><code>collection.log</code></td><td>采集服务 journal</td></tr><tr><td>采集任务</td><td><code>task-actions.log</code></td><td>任务命令与结果</td></tr></tbody></table><div class="note"><strong>告警批量删除</strong>删除会作用于持久化数据。操作后刷新验证；如仍出现，检查后端响应和数据库写权限。</div><p>默认保留 30 天，由 <code>MONITOR_RETENTION_DAYS</code> 控制。</p></section>
-
-<section id="fsm"><h2>10. 状态机监控</h2><p>状态机页面为 <code>frontend/public/fsm_debug_ui.html</code>，随项目静态资源启动并持续监听。访问格式：</p><pre><code>http://127.0.0.1:8080/fsm_debug_ui.html?target=http://&lt;工站IP&gt;:9090</code></pre><p>页面无数据时检查 Agent、工站 TCP 9090、FSM 进程和浏览器 Network/Console。</p><pre><code>curl -v http://&lt;工站IP&gt;:9090/
-nc -vz &lt;工站IP&gt; 9090</code></pre></section>
-
-<section id="verify"><h2>11. 测试、验收与备份</h2><h3>代码验证</h3><pre><code>.venv/bin/python -m compileall -q station_monitor
+sudo journalctl -u workstation-monitor.service -f</code></pre>
+<div class="note"><strong>权限要求</strong>运行用户必须能读取项目和 <code>.env</code>，并能写入 <code>data/</code>。若页面需要自动启用 Nginx，相关 <code>sudo -n</code> 命令还需单独授权；不要给服务无边界的 sudo 权限。</div>
+<h3>升级流程</h3>
+<pre><code>sudo systemctl stop workstation-monitor.service
+# 备份 data/ 与 .env
+source .venv/bin/activate
+pip install -e ".[test]"
+cd frontend &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; cd ..
+.venv/bin/python -m compileall -q station_monitor
 .venv/bin/pytest -q
+sudo systemctl start workstation-monitor.service</code></pre>
+</section>
+
+<section id="stations">
+<h2><span>07</span>工站 Agent 接入</h2>
+<h3>自动接入流程</h3>
+<ol>
+<li>控制中心使用用户填写的工站 Linux 账号进行一次 SSH 连接。</li>
+<li>检查目标系统为 Ubuntu 22.04，并安装缺失的 Python 依赖。</li>
+<li>把 Agent 源码安装到 <code>/opt/station-monitor</code>。</li>
+<li>生成 <code>/etc/station-monitor/agent.json</code>。</li>
+<li>安装并启用 <code>station-monitor-agent.service</code>。</li>
+<li>Agent 通过 <code>MONITOR_PUBLIC_AGENT_URL</code> 回连，发送心跳、遥测与日志。</li>
+</ol>
+<div class="note ok"><strong>凭据处理</strong>SSH 密码用于当前接入请求，不写入数据库。数据库记录工站 SSH 用户、端口和认证/可达状态。</div>
+<h3>接入前检查</h3>
+<pre><code>ping -c 3 &lt;工站 IP&gt;
+nc -vz &lt;工站 IP&gt; 22
+ssh &lt;Linux 用户&gt;@&lt;工站 IP&gt;
+curl -I &lt;Agent 回连地址对应的 HTTP/HTTPS 入口&gt;</code></pre>
+<h3>Agent 配置示例</h3>
+<pre><code>{
+  "station_id": "站点 UUID",
+  "station_ip": "192.168.31.13",
+  "server_url": "wss://monitor.example:8443/ws/agent",
+  "secret": "与服务端一致的共享密钥",
+  "robot_unit": "airbot-robot.service",
+  "collection_unit": "airbot-collection.service",
+  "ros_domain_id": 0,
+  "joint_topic": "/joint_states",
+  "temperature_topics": [],
+  "log_paths": ["/userdata/storage/arm_app/last/log/arm_app.log"]
+}</code></pre>
+<h3>Agent 运维</h3>
+<pre><code>sudo systemctl status station-monitor-agent.service
+sudo systemctl restart station-monitor-agent.service
+sudo journalctl -u station-monitor-agent.service -n 200 --no-pager
+sudo cat /etc/station-monitor/agent.json</code></pre>
+<div class="note warn"><strong>已知工站任务适配</strong>源码对五个已知现场 IP 配置了专用开/关任务命令；其他 IP 使用 <code>.env</code> 的通用任务命令。新增现场型号时应先验证命令、类别、主机参数与状态机选项。</div>
+<h3>mTLS 建议</h3>
+<p><code>deploy/nginx-agent-mtls.conf</code> 提供 8443 示例：Nginx 验证客户端证书、代理 <code>/ws/agent</code> 并设置 <code>X-SSL-Client-Verify</code>。启用后设置：</p>
+<pre><code>MONITOR_ALLOW_INSECURE_AGENTS=false
+MONITOR_PUBLIC_AGENT_URL=wss://&lt;控制中心地址&gt;:8443/ws/agent</code></pre>
+</section>
+
+<section id="operations">
+<h2><span>08</span>日常操作</h2>
+<div class="grid">
+<div class="card"><h3>工站总览</h3><p>观察在线、Agent/SSH、进程、CPU、关节、温度和活动告警。</p></div>
+<div class="card"><h3>进程控制</h3><p>启动、停止、重启机械臂和采集，执行任务开关、回零与复位。</p></div>
+<div class="card"><h3>日志与告警</h3><p>按日期、来源、级别筛选；下载/清理日志，确认或删除告警。</p></div>
+<div class="card"><h3>SSH 与文件</h3><p>使用目标工站 Linux 凭据建立终端和文件会话。</p></div>
+</div>
+<h3>控制安全边界</h3>
+<ul>
+<li>结构化进程控制只接受服务端定义的目标与动作。</li>
+<li>Agent 的普通进程控制使用白名单；回零、复位和任务使用配置中的固定命令。</li>
+<li>SSH 终端本身具备目标账号的完整权限，应单独限制账号、来源 IP 和审计访问。</li>
+<li>批量命令模型最多接受 5 个工站 ID。</li>
+</ul>
+<h3>日志与告警</h3>
+<table><thead><tr><th>类别</th><th>默认行为</th><th>运维提示</th></tr></thead><tbody>
+<tr><td>日志索引</td><td>写入 SQLite，并按日期/工站/来源分页查询。</td><td>页面可按机械臂、采集与级别筛选。</td></tr>
+<tr><td>日志原文</td><td>写入 <code>data/logs/.../*.ndjson</code>。</td><td>支持下载和按选择删除。</td></tr>
+<tr><td>告警</td><td>CPU、温度、进程、心跳与错误日志可触发。</td><td>支持确认、全部确认和批量删除。</td></tr>
+<tr><td>保留清理</td><td>后台每小时运行一次，默认保留 30 天。</td><td>清理前先做数据备份。</td></tr>
+</tbody></table>
+<h3>数据采集与 FSM</h3>
+<p>工站可关联 <code>acquisition_project_id</code>。控制中心使用配置的采集账号向上游登录，并将浏览器引导到对应项目。FSM 调试页面位于：</p>
+<pre><code>http://127.0.0.1:8080/fsm_debug_ui.html?target=http://&lt;工站IP&gt;:9090</code></pre>
+<div class="note danger"><strong>不要混淆账号</strong>控制中心管理员账号用于网页登录；SSH 使用目标工站 Linux 账号；数据采集代理使用 <code>MONITOR_ACQUISITION_*</code> 凭据。三者互不通用。</div>
+</section>
+
+<section id="data">
+<h2><span>09</span>数据、接口与端口</h2>
+<h3>持久化目录</h3>
+<table><thead><tr><th>路径</th><th>内容</th></tr></thead><tbody>
+<tr><td><code>data/monitor.db</code></td><td>工站、最新遥测、告警、命令任务、日志索引和审计记录。</td></tr>
+<tr><td><code>data/logs/&lt;station&gt;/&lt;source&gt;/&lt;date&gt;.ndjson</code></td><td>按工站、来源和日期保存的日志原文。</td></tr>
+<tr><td><code>data/known_hosts</code></td><td>要求 SSH 主机密钥校验时使用。</td></tr>
+<tr><td><code>data/workstation-monitor-nginx.conf</code></td><td>局域网功能生成的 Nginx 配置。</td></tr>
+</tbody></table>
+<h3>核心接口</h3>
+<table><thead><tr><th>类型</th><th>路径</th><th>用途</th></tr></thead><tbody>
+<tr><td>REST</td><td><code>/api/auth/*</code></td><td>登录、当前账号和退出。</td></tr>
+<tr><td>REST</td><td><code>/api/stations</code></td><td>工站列表、创建、更新、删除、接入和重连。</td></tr>
+<tr><td>REST</td><td><code>/api/commands</code></td><td>单站/批量命令与命令记录。</td></tr>
+<tr><td>REST</td><td><code>/api/alarms</code></td><td>告警查询、确认与删除。</td></tr>
+<tr><td>REST</td><td><code>/api/logs</code></td><td>分页查询、错误日志、文件、下载与清理。</td></tr>
+<tr><td>REST</td><td><code>/api/network/*</code></td><td>Nginx、Tailscale 与临时公网访问。</td></tr>
+<tr><td>WebSocket</td><td><code>/ws/browser</code></td><td>页面实时更新。</td></tr>
+<tr><td>WebSocket</td><td><code>/ws/agent</code></td><td>Agent 注册、心跳、遥测、日志和命令。</td></tr>
+<tr><td>WebSocket</td><td><code>/ws/terminal/{station_id}</code></td><td>SSH 终端会话。</td></tr>
+</tbody></table>
+<p>完整、实时的接口参数以启动后的 <a href="http://127.0.0.1:8080/docs">OpenAPI /docs</a> 为准。浏览器业务 API 由登录 Cookie 保护。</p>
+</section>
+
+<section id="network">
+<h2><span>10</span>局域网、远程与互联网访问</h2>
+<h3>局域网 Nginx</h3>
+<p>页面会检测 8088 和 8081，并生成 <code>data/workstation-monitor-nginx.conf</code>：</p>
+<ul>
+<li><code>8088</code>：代理控制中心 8080，包含 WebSocket Upgrade。</li>
+<li><code>8081</code>：代理外部数据采集上游。</li>
+</ul>
+<p>自动安装和启用依赖无交互 <code>sudo -n</code>。若失败，手动执行：</p>
+<pre><code>sudo install -m 0644 data/workstation-monitor-nginx.conf \
+  /etc/nginx/conf.d/workstation-monitor.conf
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx</code></pre>
+<h3>Tailscale 私网</h3>
+<pre><code>tailscale ip -4
+# 若未连接
+sudo tailscale up</code></pre>
+<p>连接成功后使用 <code>http://&lt;Tailscale-IP&gt;:8088</code>。这仍是 HTTP，机密性依赖 Tailscale 网络；按组织策略配置 ACL。</p>
+<h3>临时公网隧道</h3>
+<p>后端优先启动 Cloudflare Quick Tunnel 指向 <code>127.0.0.1:8088</code>，失败后尝试 <code>localhost.run</code>。返回地址是临时地址，服务重启后可能变化。</p>
+<div class="note danger"><strong>公网暴露风险</strong>该页面包含工站控制、SSH 终端和文件能力。临时隧道只适合短时受控演示，不应用作生产发布方式。后端会要求管理员密码至少 12 位，但这不等于完整安全加固。</div>
+<h3>采集上游连通性</h3>
+<pre><code>curl -I "$MONITOR_ACQUISITION_BASE_URL"
+ip route
+ss -ltnp | grep -E ':(8080|8081|8088)'</code></pre>
+</section>
+
+<section id="security">
+<h2><span>11</span>生产安全清单</h2>
+<ul class="checks">
+<li>更换管理员密码，使用至少 12 位随机密码</li>
+<li>更换 Agent 共享密钥</li>
+<li>设置 <code>MONITOR_ALLOW_INSECURE_AGENTS=false</code></li>
+<li>为 Agent WebSocket 配置 TLS 与客户端证书</li>
+<li>控制中心仅监听环回或受控管理网</li>
+<li>限制 22、8080、8081、8088、8443 的来源地址</li>
+<li>SSH 使用专用低权限账号和密钥认证</li>
+<li>不要提交 .env、Agent secret 或证书私钥</li>
+<li>限制 systemd 服务文件和 data/ 的文件权限</li>
+<li>启用 SQLite、日志、审计和配置备份</li>
+<li>谨慎使用临时公网隧道</li>
+<li>核对固定控制命令及其运行用户权限</li>
+</ul>
+<div class="note warn"><strong>自动化与 sudo</strong>网页启用 Nginx 和 SSH 接入可能需要系统权限。仅授权具体命令和具体目标路径，避免给 Web 服务用户开放任意 sudo。</div>
+</section>
+
+<section id="verify">
+<h2><span>12</span>测试、验收与备份</h2>
+<h3>代码检查</h3>
+<pre><code>.venv/bin/python -m compileall -q station_monitor
+.venv/bin/pytest -q
+
 cd frontend
 npm run typecheck
-npm run build</code></pre><h3>上线验收</h3><ul class="checks"><li>登录、退出和修改密码正常</li><li>在线工站优先显示，掉线重连后状态恢复</li><li>机械臂、数采、复位和归零均返回明确结果</li><li>采集页自动登录并匹配正确项目</li><li>SSH 终端、上传、下载和预览正常</li><li>当天日志倒序显示且来源可切换</li><li>告警批量删除后刷新不再出现</li><li>FSM 持续更新，桌面和手机布局无溢出</li></ul><h3>备份</h3><p>至少备份 <code>data/</code> 和部署机的 <code>.env</code>；后者含敏感信息，应加密保存。</p><pre><code>sudo systemctl stop workstation-monitor.service
-tar -czf workstation-monitor-data-$(date +%F).tar.gz data
-sudo systemctl start workstation-monitor.service</code></pre></section>
+npm run build</code></pre>
+<h3>上线验收</h3>
+<ul class="checks">
+<li>8080 健康检查返回成功</li>
+<li>登录、退出和会话保护正常</li>
+<li>页面与 WebSocket 实时更新正常</li>
+<li>Agent 掉线与重连状态正确</li>
+<li>CPU、关节和温度数据持续刷新</li>
+<li>机械臂和采集控制返回明确结果</li>
+<li>回零、复位和任务命令已在单站验证</li>
+<li>日志筛选、下载和清理正常</li>
+<li>告警产生、确认和删除正常</li>
+<li>SSH 终端与文件操作权限符合预期</li>
+<li>采集代理匹配正确 project_id</li>
+<li>Nginx/mTLS 配置通过语法与连接验证</li>
+</ul>
+<h3>备份</h3>
+<p>至少备份整个 <code>data/</code> 和部署机 <code>.env</code>。后者含密码和密钥，应加密存储并限制读取权限。</p>
+<pre><code>sudo systemctl stop workstation-monitor.service
+tar -czf workstation-monitor-data-$(date +%F).tar.gz data/
+# 单独使用加密备份工具备份 .env
+sudo systemctl start workstation-monitor.service</code></pre>
+<div class="note"><strong>SQLite 一致性</strong>最稳妥的文件级备份是在停止写入后复制数据库。若不能停机，应使用 SQLite 在线备份机制，而不是直接复制活跃的 WAL 数据库。</div>
+</section>
 
-<section id="fault"><h2>12. 常见故障排查</h2><div class="table-wrap"><table><thead><tr><th>现象</th><th>优先检查</th><th>处理方向</th></tr></thead><tbody>
-<tr><td>控制中心打不开</td><td>进程、8080/8088、服务日志</td><td>启动后端，检查 Nginx upstream</td></tr><tr><td>登录后返回登录页</td><td>Cookie、时间、API 响应</td><td>清理 Cookie，统一域名</td></tr><tr><td>采集页空白</td><td>到 192.168.215.158 的路由</td><td>恢复现场网络/VPN，检查 8081</td></tr><tr><td>SSH 失败</td><td>IP:22、Linux 凭据、sshd</td><td>勿用控制中心 admin，查防火墙</td></tr><tr><td>Agent 离线</td><td>journal、回连 URL、共享密钥</td><td>修正后重启 Agent</td></tr><tr><td>控制按钮失败</td><td>弹窗、命令路径、权限</td><td>在工站用相同用户复现</td></tr><tr><td>Nginx 未启用</td><td><code>nginx -t</code>、sudo</td><td>服务器终端手动复制并 reload</td></tr><tr><td>FSM 无数据</td><td>9090、FSM 进程、target</td><td>恢复服务或修正地址</td></tr></tbody></table></div><pre><code>systemctl status workstation-monitor.service
+<section id="troubleshooting">
+<h2><span>13</span>故障排查</h2>
+<p class="lead">推荐顺序：进程 → 端口 → 本机 HTTP → 网络路由 → 认证/密钥 → 业务命令与权限。</p>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>优先检查</th><th>处理方向</th></tr></thead><tbody>
+<tr><td>控制中心打不开</td><td>服务日志、8080、健康接口</td><td>修复启动错误，确认 .env 与 data/ 权限。</td></tr>
+<tr><td>8088 返回 502</td><td>8080 是否监听、Nginx upstream</td><td>先启动后端，再执行 <code>nginx -t</code> 和 reload。</td></tr>
+<tr><td>登录后仍回登录页</td><td>登录 API、Cookie、域名与浏览器时间</td><td>统一访问域名，清理旧 Cookie，检查服务端时间。</td></tr>
+<tr><td>模拟器无法注册</td><td>共享密钥、服务端地址</td><td>让 <code>--secret</code> 匹配服务端配置。</td></tr>
+<tr><td>Agent 离线</td><td>Agent journal、回连 URL、密钥、mTLS</td><td>从工站测试地址，修正配置后重启 Agent。</td></tr>
+<tr><td>SSH 接入失败</td><td>IP:22、Linux 凭据、Ubuntu 版本</td><td>勿使用网页 admin；检查 sshd、防火墙和权限。</td></tr>
+<tr><td>控制命令失败</td><td>systemd 单元、可执行文件、工作目录</td><td>使用 Agent 运行用户在工站复现同一固定命令。</td></tr>
+<tr><td>采集页空白</td><td>采集上游网络、凭据、project_id</td><td>恢复现场路由/VPN，验证上游登录。</td></tr>
+<tr><td>FSM 无数据</td><td>工站 9090、target 参数、FSM 进程</td><td>测试工站端口并修正页面目标 URL。</td></tr>
+<tr><td>日志不更新</td><td>Agent 日志路径、文件权限、WebSocket</td><td>核对 log_paths，查看 Agent journal。</td></tr>
+<tr><td>Nginx 自动启用失败</td><td><code>sudo -n</code>、安装状态、配置语法</td><td>按生成配置在服务器终端手动安装并 reload。</td></tr>
+<tr><td>公网地址失效</td><td>隧道进程、DNS、网络出口</td><td>临时隧道地址会变化；重新开启并检查状态。</td></tr>
+</tbody></table></div>
+<h3>诊断命令</h3>
+<pre><code>systemctl status workstation-monitor.service
 journalctl -u workstation-monitor.service -n 200 --no-pager
-ss -ltnp | grep -E ':(22|8080|8081|8088|9090)\b'
+ss -ltnp | grep -E ':(8080|8081|8088|8443)'
+curl -v http://127.0.0.1:8080/api/health
 nginx -t
-curl -I http://127.0.0.1:8080/
-curl -I http://192.168.215.158/acquisition/project
-ip -4 route</code></pre><div class="note ok"><strong>排查顺序</strong>进程运行 → 端口监听 → 网络可达 → 账号、权限和业务配置。</div></section>
-<footer>Workstation Monitor 运行与维护文档 · 以当前仓库代码和部署环境为准</footer>
-</main></div>
-<script>
-document.querySelectorAll("pre").forEach(function(block){var b=document.createElement("button");b.className="copy";b.type="button";b.textContent="复制";b.onclick=async function(){try{var c=block.querySelector("code");await navigator.clipboard.writeText(c?c.innerText:block.innerText);b.textContent="完成";setTimeout(function(){b.textContent="复制"},1200)}catch(e){b.textContent="失败"}};block.appendChild(b)});
-var links=[].slice.call(document.querySelectorAll("nav a"));var observer=new IntersectionObserver(function(entries){var v=entries.filter(function(e){return e.isIntersecting})[0];if(!v)return;links.forEach(function(a){a.classList.toggle("active",a.hash==="#"+v.target.id)})},{rootMargin:"-15% 0px -70% 0px"});document.querySelectorAll("section[id]").forEach(function(s){observer.observe(s)});
-</script></body></html>
+ip address
+ip route
+ps -ef | grep -E 'station-monitor|nginx|cloudflared'</code></pre>
+<h3>Agent 侧</h3>
+<pre><code>systemctl status station-monitor-agent.service
+journalctl -u station-monitor-agent.service -n 200 --no-pager
+systemctl status airbot-robot.service airbot-collection.service
+test -r /userdata/storage/arm_app/last/log/arm_app.log
+python3 -m json.tool /etc/station-monitor/agent.json</code></pre>
+</section>
+
+<footer>AIRBOT Workstation Monitor · 运行与维护手册 · 以当前仓库源码和实际部署环境为准</footer>
+</main>
+</div>
+</body>
+</html>

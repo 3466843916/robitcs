@@ -135,9 +135,7 @@ class LogPayload(BaseModel):
     @classmethod
     def normalize_level(cls, value: str) -> str:
         value = value.upper()
-        if value in {"FATAL", "CRITICAL", "FAIL", "FAILED", "FAILURE"}:
-            return "ERROR"
-        return value if value in {"DEBUG", "INFO", "WARNING", "ERROR"} else "INFO"
+        return value if value in {"DEBUG", "INFO", "WARNING", "ERROR", "FATAL"} else "INFO"
 
 
 class AgentEnvelope(BaseModel):

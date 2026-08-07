@@ -29,10 +29,6 @@ class SdkCollector:
     def snapshot(self) -> tuple[dict[str, float], dict[str, float]]:
         return dict(self.joints), {**self.temperatures, **self.eef_temperatures}
 
-    def source_data_fresh(self, source: str, max_age: float = 5.0) -> bool:
-        last_seen = self.last_data_at.get(source)
-        return last_seen is not None and time.monotonic() - last_seen <= max_age
-
     def arm_data_fresh(self, max_age: float = 5.0, startup_grace: float = 10.0) -> bool:
         now = time.monotonic()
         if now - self.started_at < startup_grace:

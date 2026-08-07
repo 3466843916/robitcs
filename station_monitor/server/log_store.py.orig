@@ -107,7 +107,6 @@ class LogStore:
             else:
                 filters.append("level IN (\"ERROR\",\"FATAL\")" if level == "ERROR" else "level=?")
                 if level != "ERROR":
-                    params.append(level)
         if source_group == "robot":
             filters.append("source=?")
             params.append("arm_app.log")

@@ -1,0 +1,7 @@
+--- station_monitor/server/log_store.py
++++ station_monitor/server/log_store.py
+@@ -108,3 +108,4 @@
+             else:
+                 filters.append("level IN (\"ERROR\",\"FATAL\")" if level == "ERROR" else "level=?")
+                 if level != "ERROR":
++                    params.append(level)

@@ -26,7 +26,7 @@ from .alerts import AlertService
 from .config import Settings, settings
 from .connections import ConnectionHub
 from .database import Database
-from .log_store import LogStore
+from .log_store import LogStore, effective_level, effective_timestamp
 from .models import (
     AgentEnvelope,
     AlarmDeleteRequest,
@@ -1105,11 +1105,16 @@ async def handle_log(station_id: str, item: LogPayload) -> None:
     }
     if item.source not in source_groups:
         return
+    item.level = effective_level(item.level, item.message)
+    item.timestamp = effective_timestamp(item.timestamp, item.message)
     await runtime.logs.append(station_id, item)
-    if item.level in {"ERROR", "FATAL"}:
+    if item.level in {"WARNING", "ERROR"}:
         group, label = source_groups[item.source]
         await runtime.alerts.raise_alarm(
-            station_id, f"log:{group}", Severity.CRITICAL, f"{label}：{item.message[:300]}"
+            station_id,
+            f"log:{group}",
+            Severity.CRITICAL if item.level == "ERROR" else Severity.WARNING,
+            f"{label} [{item.level}]：{item.message[:300]}",
         )
     await runtime.hub.broadcast({"type": "log", "station_id": station_id, "payload": item.model_dump(mode="json")})
 
