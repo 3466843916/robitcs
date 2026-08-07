@@ -918,6 +918,13 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
         return
     await socket.accept()
     process = None
+    def safe_path(value: object, allow_current: bool = True) -> str:
+        path = str(value or "").replace("\\", "/")
+        if path.startswith("/") or any(part == ".." for part in path.split("/")):
+            raise ValueError("文件操作路径不安全，只允许当前 SSH 用户目录内的相对路径")
+        if not allow_current and path in {"", "."}:
+            raise ValueError("禁止操作当前目录")
+        return path or "."
     try:
         station = await runtime.db.fetch_one("SELECT ip FROM stations WHERE id=?", (station_id,))
         if not station:
@@ -959,7 +966,7 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                         elif payload.get("type") == "resize":
                             process.change_terminal_size(int(payload["cols"]), int(payload["rows"]))
                         elif payload.get("type") == "file_list":
-                            path = str(payload.get("path") or ".")
+                            path = safe_path(payload.get("path"), True)
                             entries = []
                             async for entry in sftp.scandir(path):
                                 permissions = entry.attrs.permissions or 0
@@ -973,7 +980,7 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                             entries.sort(key=lambda item: (not item["is_dir"], item["name"].lower()))
                             await socket.send_json({"type": "file_list", "path": path, "entries": entries})
                         elif payload.get("type") == "file_download":
-                            path = str(payload.get("path") or "")
+                            path = safe_path(payload.get("path"), False)
                             attrs = await sftp.stat(path)
                             if (attrs.size or 0) > 20 * 1024 * 1024:
                                 raise ValueError("单个下载文件不能超过 20 MB")
@@ -984,7 +991,7 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                                 "data": base64.b64encode(data).decode(),
                             })
                         elif payload.get("type") == "file_write":
-                            path = str(payload.get("path") or "")
+                            path = safe_path(payload.get("path"), False)
                             data = base64.b64decode(str(payload.get("data") or ""), validate=True)
                             if not path or len(data) > 20 * 1024 * 1024:
                                 raise ValueError("写入文件无效或超过 20 MB")
@@ -992,7 +999,7 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                                 await remote.write(data)
                             await socket.send_json({"type": "file_written", "path": path})
                         elif payload.get("type") == "file_upload":
-                            directory = str(payload.get("path") or ".")
+                            directory = safe_path(payload.get("path"), True)
                             name = posixpath.basename(str(payload.get("name") or ""))
                             data = base64.b64decode(str(payload.get("data") or ""), validate=True)
                             if not name or len(data) > 20 * 1024 * 1024:
@@ -1001,6 +1008,20 @@ async def ssh_terminal(socket: WebSocket, station_id: str):
                             async with sftp.open(target, "wb") as remote:
                                 await remote.write(data)
                             await socket.send_json({"type": "file_uploaded", "path": directory, "name": name})
+                        elif payload.get("type") == "file_delete":
+                            path = safe_path(str(payload.get("path") or "").rstrip("/"), False)
+                            if path in {"", "."} or path == "/":
+                                raise ValueError("禁止删除根目录或当前目录")
+                            attrs = await sftp.stat(path)
+                            if stat.S_ISDIR(attrs.permissions or 0):
+                                await sftp.rmdir(path)
+                            else:
+                                await sftp.remove(path)
+                            await socket.send_json({
+                                "type": "file_deleted",
+                                "path": posixpath.dirname(path) or ".",
+                                "name": posixpath.basename(path),
+                            })
 
             tasks = [asyncio.create_task(to_browser()), asyncio.create_task(to_ssh())]
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
